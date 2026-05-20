@@ -58,20 +58,20 @@ Depends on: **Phase 0**
 
 ### Deliverables
 
-- [ ] Ticket CRUD + messages + find-or-create customer
-- [ ] Customer CRUD
-- [ ] Status types CRUD + reorder
-- [ ] Tags CRUD + ticket tagging
-- [ ] Custom field definitions CRUD
-- [ ] Custom field values read/write on tickets and customers
-- [ ] Global settings GET/PATCH
-- [ ] API key create/list/revoke
-- [ ] Auth middleware: staff JWT + API key
-- [ ] Ticket filtering (simple exact match, including custom fields)
-- [ ] `GET /tickets/:id/context` (copy for AI)
-- [ ] `GET /board` convenience endpoint
-- [ ] Input validation (Zod schemas)
-- [ ] Consistent error responses
+- [x] Ticket CRUD + messages + find-or-create customer
+- [x] Customer CRUD
+- [x] Status types CRUD + reorder
+- [x] Tags CRUD + ticket tagging
+- [x] Custom field definitions CRUD
+- [x] Custom field values read/write on tickets and customers
+- [x] Global settings GET/PATCH
+- [x] API key create/list/revoke
+- [x] Auth middleware: staff JWT + API key
+- [x] Ticket filtering (simple exact match, including custom fields)
+- [x] `GET /tickets/:id/context` (copy for AI)
+- [x] `GET /board` convenience endpoint
+- [x] Input validation (Zod schemas)
+- [x] Consistent error responses
 
 ### Exit criteria
 
@@ -103,24 +103,24 @@ Depends on: **Phase 1**
 
 ### Deliverables
 
-- [ ] Staff login page
-- [ ] Kanban board view (`GET /board`)
-  - [ ] Lanes = status types (respect `visible_status_ids`)
-  - [ ] Ticket cards: title, preview, customer initials, assignee initials, custom fields, tags
-  - [ ] Drag-and-drop between lanes → `PATCH /tickets/:id` (status change)
-- [ ] Ticket detail panel/modal
-  - [ ] Message thread (public + internal, visually distinct)
-  - [ ] Reply box (public reply + internal note toggle)
-  - [ ] Edit title, assignee, tags, custom fields
-  - [ ] "Copy context" button → clipboard
-- [ ] Create ticket form (manual)
-- [ ] Settings pages (admin only)
-  - [ ] Status types management (add/reorder/color)
-  - [ ] Tags management
-  - [ ] Custom field definitions
-  - [ ] Board visibility settings
-  - [ ] API key management
-- [ ] Responsive layout (desktop-first; mobile usable)
+- [x] Staff login page
+- [x] Kanban board view (`GET /board`)
+  - [x] Lanes = status types (respect `visible_status_ids`)
+  - [x] Ticket cards: title, preview, customer initials, assignee initials, custom fields, tags
+  - [x] Drag-and-drop between lanes → `PATCH /tickets/:id` (status change)
+- [x] Ticket detail panel/modal
+  - [x] Message thread (public + internal, visually distinct)
+  - [x] Reply box (public reply + internal note toggle)
+  - [x] Edit title, assignee, tags, custom fields
+  - [x] "Copy context" button → clipboard
+- [x] Create ticket form (manual)
+- [x] Settings pages (admin only)
+  - [x] Status types management (add/reorder/color)
+  - [x] Tags management
+  - [x] Custom field definitions
+  - [x] Board visibility settings
+  - [x] API key management
+- [x] Responsive layout (desktop-first; mobile usable)
 
 ### Exit criteria
 
@@ -144,17 +144,17 @@ See [INTEGRATIONS.md](./INTEGRATIONS.md) for full spec.
 
 ### Deliverables
 
-- [ ] Resend adapter (`/server/adapters/email/resend.ts`)
-- [ ] Resend inbound webhook endpoint
-- [ ] Trigger.dev: inbound email processing job
-  - [ ] Parse email → find/create customer → match/create ticket → create message
-  - [ ] Threading: Message-ID / In-Reply-To first, subject + customer fallback
-  - [ ] Parse email attachments → Supabase Storage
-- [ ] Trigger.dev: outbound email job
-  - [ ] On public message via admin/API → send via Resend
-  - [ ] Proper threading headers (`In-Reply-To`, `References`)
-- [ ] Email metadata stored on messages (`email_message_id`, etc.)
-- [ ] `email_threads` table populated for fallback matching
+- [x] Resend adapter (`/server/adapters/email/resend.ts`)
+- [x] Resend inbound webhook endpoint
+- [x] Trigger.dev: inbound email processing job
+  - [x] Parse email → find/create customer → match/create ticket → create message
+  - [x] Threading: Message-ID / In-Reply-To first, subject + customer fallback
+  - [x] Parse email attachments → Supabase Storage
+- [x] Trigger.dev: outbound email job
+  - [x] On public message via admin/API → send via Resend
+  - [x] Proper threading headers (`In-Reply-To`, `References`)
+- [x] Email metadata stored on messages (`email_message_id`, etc.)
+- [x] `email_threads` table populated for fallback matching
 
 ### Exit criteria
 
