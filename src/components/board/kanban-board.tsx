@@ -105,12 +105,15 @@ export function KanbanBoard() {
 
   if (loading) {
     return (
-      <>
-        <div className="space-y-4 p-8">
-          <Skeleton className="h-8 w-48" />
-          <div className="flex gap-4">
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-8 w-24" />
+        </div>
+        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-96 w-72 shrink-0 rounded-xl" />
+              <Skeleton key={i} className="h-full w-72 shrink-0 rounded-xl" />
             ))}
           </div>
         </div>
@@ -121,7 +124,7 @@ export function KanbanBoard() {
             onBoardChange={refreshBoard}
           />
         )}
-      </>
+      </div>
     );
   }
 
@@ -136,8 +139,8 @@ export function KanbanBoard() {
   }
 
   return (
-    <>
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <h1 className="font-heading text-lg font-semibold text-foreground">
           Support board
         </h1>
@@ -147,31 +150,35 @@ export function KanbanBoard() {
         </Button>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        onDragStart={(e) => {
-          const found = findTicket(String(e.active.id));
-          if (found) setActiveTicket(found.ticket);
-        }}
-        onDragEnd={onDragEnd}
-      >
-        <div className="flex gap-4 overflow-x-auto p-4">
-          {lanes.map((lane) => (
-            <LaneColumn
-              key={lane.status.id}
-              lane={lane}
-              onTicketClick={setSelectedId}
-            />
-          ))}
-        </div>
-        <DragOverlay>
-          {activeTicket ? (
-            <div className="w-72">
-              <TicketCard ticket={activeTicket} onClick={() => {}} dragOverlay />
+      <div className="flex min-h-0 flex-1 flex-col">
+        <DndContext
+          sensors={sensors}
+          onDragStart={(e) => {
+            const found = findTicket(String(e.active.id));
+            if (found) setActiveTicket(found.ticket);
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
+              {lanes.map((lane) => (
+                <LaneColumn
+                  key={lane.status.id}
+                  lane={lane}
+                  onTicketClick={setSelectedId}
+                />
+              ))}
             </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+          </div>
+          <DragOverlay>
+            {activeTicket ? (
+              <div className="w-72">
+                <TicketCard ticket={activeTicket} onClick={() => {}} dragOverlay />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      </div>
 
       {selectedId && (
         <TicketModal
@@ -191,6 +198,6 @@ export function KanbanBoard() {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

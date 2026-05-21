@@ -19,12 +19,12 @@ export function LaneColumn({
     <section
       ref={setNodeRef}
       className={cn(
-        "flex w-72 shrink-0 flex-col rounded-xl bg-muted/50 ring-1 ring-foreground/5",
+        "flex h-full min-h-0 w-72 shrink-0 flex-col rounded-xl bg-muted/50 ring-1 ring-foreground/5",
         isOver && "ring-2 ring-ring",
       )}
     >
       <header
-        className="flex items-center gap-2 border-b border-border px-3 py-2"
+        className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2"
         style={{ borderTopWidth: 3, borderTopStyle: "solid", borderTopColor: lane.status.color }}
       >
         <span
@@ -36,7 +36,7 @@ export function LaneColumn({
           {lane.tickets.length}
         </Badge>
       </header>
-      <div className="flex flex-1 flex-col gap-2 p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         {lane.tickets.map((ticket) => (
           <TicketCard
             key={ticket.id}
