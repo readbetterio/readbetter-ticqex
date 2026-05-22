@@ -24,11 +24,6 @@ export function LaneColumn({
 
   return (
     <section className="flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-muted/50 ring-1 ring-inset ring-foreground/5">
-      <div
-        className="h-[3px] shrink-0 rounded-t-xl"
-        style={{ backgroundColor: lane.status.color }}
-        aria-hidden
-      />
       <header className="relative flex shrink-0 items-center gap-2 px-3 py-2 after:absolute after:inset-x-2 after:bottom-0 after:border-b after:border-border">
         <span
           className="size-2 rounded-full"
