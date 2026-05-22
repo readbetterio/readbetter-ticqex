@@ -21,13 +21,9 @@ export async function getBoard(userId?: string) {
 
   if (statusErr) throw ApiError.internal(statusErr.message);
 
-  const visibleIds = settings.visible_status_ids?.length
-    ? new Set(settings.visible_status_ids)
-    : null;
-
   const lanes = [];
   for (const status of statuses ?? []) {
-    if (visibleIds && !visibleIds.has(status.id)) continue;
+    if (status.is_visible === false) continue;
 
     const { data: tickets } = await db
       .from("tickets")

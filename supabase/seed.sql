@@ -10,6 +10,7 @@ VALUES
 INSERT INTO public.global_settings (
   id,
   visible_status_ids,
+  default_inbound_status_id,
   show_customer_on_ticket,
   show_assignee_on_ticket,
   show_body_on_ticket
@@ -17,6 +18,7 @@ INSERT INTO public.global_settings (
 SELECT
   1,
   array_agg(id ORDER BY position),
+  (SELECT id FROM public.status_types ORDER BY position ASC LIMIT 1),
   true,
   true,
   true

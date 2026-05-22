@@ -13,16 +13,15 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiKeyForm, RevokeButton } from "@/components/settings/api-key-form";
-import { BoardSettingsForm } from "@/components/settings/board-settings-form";
 import { CustomFieldForm } from "@/components/settings/custom-field-form";
 import { EmailSignatureForm } from "@/components/settings/email-signature-form";
 import { EmailSnippetsSection } from "@/components/settings/email-snippets-section";
-import { StatusForm } from "@/components/settings/status-form";
+import { InboundEmailStatusSetting } from "@/components/settings/inbound-email-status-setting";
+import { StatusColumnsSection } from "@/components/settings/status-columns-section";
 import { TagForm } from "@/components/settings/tag-form";
 import { ThemeSetting } from "@/components/settings/theme-setting";
 import { apiFetch } from "@/lib/api-client";
 
-type Status = { id: string; name: string; color: string; position: number };
 type Tag = { id: string; name: string; color: string };
 type CustomField = {
   id: string;
@@ -32,7 +31,6 @@ type CustomField = {
   type: string;
 };
 type Settings = {
-  visible_status_ids: string[];
   show_customer_on_ticket: boolean;
   show_assignee_on_ticket: boolean;
   show_body_on_ticket: boolean;
@@ -48,7 +46,6 @@ type Me = { role: string };
 
 export function SettingsPanel() {
   const [me, setMe] = useState<Me | null>(null);
-  const [statuses, setStatuses] = useState<Status[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [fields, setFields] = useState<CustomField[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -60,13 +57,11 @@ export function SettingsPanel() {
     try {
       const user = await apiFetch<Me>("/api/v1/users/me");
       setMe(user);
-      const [s, t, f, g] = await Promise.all([
-        apiFetch<Status[]>("/api/v1/statuses"),
+      const [t, f, g] = await Promise.all([
         apiFetch<Tag[]>("/api/v1/tags"),
         apiFetch<CustomField[]>("/api/v1/custom-fields"),
         apiFetch<Settings>("/api/v1/settings"),
       ]);
-      setStatuses(s);
       setTags(t);
       setFields(f);
       setSettings(g);
@@ -117,7 +112,7 @@ export function SettingsPanel() {
       <div>
         <h1 className="font-heading text-xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage appearance, statuses, tags, board visibility, and integrations.
+          Manage appearance, board columns, tags, and integrations.
         </p>
       </div>
 
@@ -131,21 +126,27 @@ export function SettingsPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Status types</CardTitle>
+          <CardTitle>Board columns</CardTitle>
+          <CardDescription>
+            Drag to reorder lanes, pick colors, rename statuses, and choose
+            board visibility.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <ul className="space-y-2 text-sm">
-            {statuses.map((s) => (
-              <li key={s.id} className="flex items-center gap-2">
-                <span
-                  className="size-3 rounded-full"
-                  style={{ backgroundColor: s.color }}
-                />
-                {s.name}
-              </li>
-            ))}
-          </ul>
-          <StatusForm onCreated={load} />
+        <CardContent>
+          <StatusColumnsSection />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>New inbound emails</CardTitle>
+          <CardDescription>
+            Status assigned when an email creates a new ticket. Defaults to the
+            first board column in order.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InboundEmailStatusSetting />
         </CardContent>
       </Card>
 
@@ -184,20 +185,6 @@ export function SettingsPanel() {
           </ul>
         </CardContent>
       </Card>
-
-      {settings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Board visibility</CardTitle>
-            <CardDescription>
-              Choose which status columns appear on the support board.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BoardSettingsForm settings={settings} statuses={statuses} onSaved={load} />
-          </CardContent>
-        </Card>
-      )}
 
       {settings && (
         <Card>

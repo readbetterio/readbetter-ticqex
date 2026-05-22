@@ -14,6 +14,22 @@ export async function getSettings() {
 
 export async function patchSettings(patch: Record<string, unknown>) {
   const db = createAdminClient();
+
+  if (
+    patch.default_inbound_status_id !== undefined &&
+    patch.default_inbound_status_id !== null
+  ) {
+    const { data: status, error: statusErr } = await db
+      .from("status_types")
+      .select("id")
+      .eq("id", patch.default_inbound_status_id)
+      .maybeSingle();
+    if (statusErr) throw ApiError.internal(statusErr.message);
+    if (!status) {
+      throw ApiError.badRequest("default_inbound_status_id is not a valid status");
+    }
+  }
+
   const { data, error } = await db
     .from("global_settings")
     .update(patch)

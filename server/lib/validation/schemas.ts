@@ -74,12 +74,18 @@ export const createStatusSchema = z.object({
   name: z.string().min(1),
   color: z.string().optional(),
   position: z.number().int().optional(),
+  is_visible: z.boolean().optional(),
 });
 
 export const updateStatusSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().optional(),
   position: z.number().int().optional(),
+  is_visible: z.boolean().optional(),
+});
+
+export const deleteStatusSchema = z.object({
+  reassign_to: z.string().uuid().optional(),
 });
 
 export const reorderStatusesSchema = z.object({
@@ -113,6 +119,7 @@ export const updateCustomFieldSchema = createCustomFieldSchema.partial().omit({
 
 export const patchSettingsSchema = z.object({
   visible_status_ids: z.array(z.string().uuid()).optional(),
+  default_inbound_status_id: z.string().uuid().nullable().optional(),
   show_customer_on_ticket: z.boolean().optional(),
   show_assignee_on_ticket: z.boolean().optional(),
   show_body_on_ticket: z.boolean().optional(),

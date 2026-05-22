@@ -2,7 +2,7 @@ import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { normalizeEmailSubject, normalizeMessageId } from "@server/lib/utils";
 import { findOrCreateCustomer } from "@server/services/customers";
-import { getDefaultStatusId } from "@server/services/statuses";
+import { getInboundEmailStatusId } from "@server/services/statuses";
 import { createInboundCustomerMessage } from "@server/services/messages";
 import {
   ensureEmailThread,
@@ -102,7 +102,7 @@ export async function processInboundEmail(parsed: ParsedEmail) {
   let isNew = false;
   if (!ticketId) {
     isNew = true;
-    const statusId = await getDefaultStatusId();
+    const statusId = await getInboundEmailStatusId();
     const contactAddress = parsed.from.trim().toLowerCase();
     const { data: ticket, error } = await db
       .from("tickets")

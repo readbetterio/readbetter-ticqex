@@ -22,6 +22,9 @@ import type { BoardLane, BoardTicket } from "./types";
 
 export function KanbanBoard() {
   const [lanes, setLanes] = useState<BoardLane[]>([]);
+  const [allStatuses, setAllStatuses] = useState<{ id: string; name: string }[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,8 +41,12 @@ export function KanbanBoard() {
       setError(null);
     }
     try {
-      const data = await apiFetch<{ lanes: BoardLane[] }>("/api/v1/board");
+      const [data, statuses] = await Promise.all([
+        apiFetch<{ lanes: BoardLane[] }>("/api/v1/board"),
+        apiFetch<{ id: string; name: string }[]>("/api/v1/statuses"),
+      ]);
       setLanes(data.lanes);
+      setAllStatuses(statuses);
     } catch (e) {
       if (!options?.silent) {
         setError(e instanceof Error ? e.message : "Failed to load board");
@@ -190,7 +197,7 @@ export function KanbanBoard() {
 
       {showCreate && (
         <CreateTicketModal
-          statuses={lanes.map((l) => l.status)}
+          statuses={allStatuses}
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
