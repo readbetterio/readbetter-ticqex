@@ -19,6 +19,12 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
+function customerMatchesSearch(username: string, search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return true;
+  return username.toLowerCase().includes(query);
+}
+
 export type CustomerOption = {
   id: string;
   username: string;
@@ -60,7 +66,11 @@ export function CustomerFilterCombobox({
           className="w-[var(--radix-popover-trigger-width)] p-0"
           align="start"
         >
-          <Command>
+          <Command
+            filter={(value, search) =>
+              customerMatchesSearch(value, search) ? 1 : 0
+            }
+          >
             <CommandInput placeholder="Search customers…" />
             <CommandList>
               <CommandEmpty>No customer found.</CommandEmpty>
@@ -130,7 +140,11 @@ export function CustomerFilterMultiCombobox({
           className="w-[var(--radix-popover-trigger-width)] p-0"
           align="start"
         >
-          <Command>
+          <Command
+            filter={(value, search) =>
+              customerMatchesSearch(value, search) ? 1 : 0
+            }
+          >
             <CommandInput placeholder="Search customers…" />
             <CommandList>
               <CommandEmpty>No customer found.</CommandEmpty>

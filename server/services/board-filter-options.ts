@@ -1,3 +1,4 @@
+import { chunkArray } from "@server/lib/chunked-array";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { getVisibleStatusIds } from "@server/services/statuses";
@@ -65,11 +66,11 @@ export async function getBoardFilterOptions() {
   const ticketIds = (tickets ?? []).map((ticket) => ticket.id as string);
   const tagMap = new Map<string, BoardFilterOptionTag>();
 
-  if (ticketIds.length) {
+  for (const chunk of chunkArray(ticketIds)) {
     const { data: links, error: tagErr } = await db
       .from("ticket_tags")
       .select("tags(id, name, color)")
-      .in("ticket_id", ticketIds);
+      .in("ticket_id", chunk);
 
     if (tagErr) throw ApiError.internal(tagErr.message);
 

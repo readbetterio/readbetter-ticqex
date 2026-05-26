@@ -36,7 +36,13 @@ export function BoardSortSelect({
         if (option) onSortChange(option);
       }}
     >
-      <SelectTrigger size="sm" className={cn("w-[220px] shrink-0", className)}>
+      <SelectTrigger
+        size="sm"
+        className={cn(
+          "w-full min-w-0 sm:w-[11rem] md:w-[13.75rem]",
+          className,
+        )}
+      >
         <SelectValue placeholder="Sort" />
       </SelectTrigger>
       <SelectContent position="popper" align="start" sideOffset={4}>

@@ -64,6 +64,11 @@ export function useBoardRealtime(
         { event: "*", schema: "public", table: "message_reads" },
         scheduleRefresh,
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "status_types" },
+        scheduleRefresh,
+      )
       .subscribe();
 
     return () => {

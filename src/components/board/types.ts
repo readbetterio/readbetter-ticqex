@@ -4,6 +4,7 @@ export type BoardLane = {
   status: { id: string; name: string; color: string };
   tickets: BoardTicket[];
   total_count?: number;
+  has_more?: boolean;
 };
 
 export type BoardTicket = {

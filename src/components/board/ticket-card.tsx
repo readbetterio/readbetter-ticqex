@@ -116,7 +116,7 @@ export function TicketCard({
         "relative rounded-xl outline-none focus:outline-none focus-visible:outline-none",
         sortable && !dragOverlay && "cursor-grab touch-none active:cursor-grabbing",
         !sortable && !dragOverlay && "cursor-pointer",
-        isDragging && !dragOverlay && "opacity-40",
+        isDragging && !dragOverlay && "opacity-0",
         dragOverlay && "shadow-lg",
       )}
     >

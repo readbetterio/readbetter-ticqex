@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   PointerSensor,
@@ -296,6 +297,7 @@ function DeleteStatusDialog({
 }
 
 export function StatusColumnsSection() {
+  const queryClient = useQueryClient();
   const [statuses, setStatuses] = useState<StatusColumn[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +332,10 @@ export function StatusColumnsSection() {
 
   const visibleCount = statuses.filter((s) => s.is_visible).length;
 
+  const invalidateBoard = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["board"] });
+  }, [queryClient]);
+
   const patchStatus = useCallback(
     async (id: string, patch: Partial<StatusColumn>) => {
       const previous = statuses;
@@ -344,12 +350,13 @@ export function StatusColumnsSection() {
         setStatuses((current) =>
           current.map((s) => (s.id === id ? updated : s)),
         );
+        invalidateBoard();
       } catch (e) {
         setStatuses(previous);
         throw e;
       }
     },
-    [statuses],
+    [statuses, invalidateBoard],
   );
 
   async function onDragEnd(event: DragEndEvent) {
@@ -370,6 +377,7 @@ export function StatusColumnsSection() {
         body: JSON.stringify({ ids: reordered.map((s) => s.id) }),
       });
       setStatuses(updated);
+      invalidateBoard();
     } catch (e) {
       setStatuses(previous);
       setError(e instanceof Error ? e.message : "Failed to reorder statuses");
@@ -401,6 +409,7 @@ export function StatusColumnsSection() {
         ),
       });
       setStatuses((current) => current.filter((s) => s.id !== deleteTarget.id));
+      invalidateBoard();
       closeDelete();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete status");
@@ -467,6 +476,7 @@ export function StatusColumnsSection() {
               }),
             });
             setStatuses((current) => [...current, created]);
+            invalidateBoard();
             setNewName("");
             setNewColor("#6366f1");
             setError(null);

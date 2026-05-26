@@ -10,7 +10,8 @@ import {
   NEEDLE_SECRET,
   NEEDLE_TITLE,
 } from "../shared/board-load-test";
-import { perLaneTicketLimit } from "../shared/board-limits";
+import { perLaneTicketLimit, BOARD_LANE_LOAD_MORE_SIZE } from "../shared/board-limits";
+import type { LaneTicketsPageResponse } from "../shared/board-lane-page";
 
 const BASE =
   process.env.LOCAL_APP_URL ??
@@ -30,6 +31,10 @@ type BoardResponse = {
   filter_active?: boolean;
   search_active?: boolean;
   capped?: boolean;
+};
+
+type LaneTicketsPage = LaneTicketsPageResponse & {
+  tickets: { id: string; title: string }[];
 };
 
 async function api<T>(path: string, token: string): Promise<T> {
@@ -109,6 +114,32 @@ async function main() {
     throw new Error("Needle ticket should not appear on uncapped browse load");
   }
 
+  const cappedLane = browse.lanes.find(
+    (lane) =>
+      lane.total_count !== undefined && lane.total_count > lane.tickets.length,
+  );
+  if (!cappedLane) {
+    throw new Error("Expected at least one lane with more tickets than shown");
+  }
+
+  const firstPageIds = new Set(cappedLane.tickets.map((ticket) => ticket.id));
+  const loadMore = await api<LaneTicketsPage>(
+    `/api/v1/board/lanes/${encodeURIComponent(cappedLane.status.id)}/tickets?offset=${cappedLane.tickets.length}&limit=${BOARD_LANE_LOAD_MORE_SIZE}`,
+    token,
+  );
+  if (loadMore.tickets.length === 0) {
+    throw new Error("Expected additional tickets from lane load-more endpoint");
+  }
+  if (loadMore.tickets.some((ticket) => firstPageIds.has(ticket.id))) {
+    throw new Error("Load-more returned duplicate ticket ids");
+  }
+  if (
+    loadMore.total_count !== cappedLane.total_count ||
+    loadMore.offset !== cappedLane.tickets.length
+  ) {
+    throw new Error("Load-more metadata mismatch");
+  }
+
   const needleSearch = await api<BoardResponse>(
     `/api/v1/board?q=${encodeURIComponent(NEEDLE_SECRET)}`,
     token,
@@ -161,6 +192,9 @@ async function main() {
 
   console.log("OK board cap + search smoke test passed");
   console.log(`  browse shown: ${shown}/${maxShown} cap, lanes: ${laneCount}`);
+  console.log(
+    `  load-more: +${loadMore.tickets.length} in ${cappedLane.status.name}`,
+  );
   console.log(`  needle found via secret: ${needleMatch.id}`);
 }
 

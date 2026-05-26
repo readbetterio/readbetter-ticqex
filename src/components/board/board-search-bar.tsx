@@ -14,7 +14,7 @@ export function BoardSearchBar({
   className?: string;
 }) {
   return (
-    <div className={cn("relative w-72", className)}>
+    <div className={cn("relative w-full min-w-0", className)}>
       <MagnifyingGlassIcon
         aria-hidden
         className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"

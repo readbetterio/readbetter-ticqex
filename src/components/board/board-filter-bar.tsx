@@ -28,15 +28,21 @@ export function BoardFilterBar({
   const draft = useFilterDraft(filter, onFilterChange, () => setOpen(false));
 
   return (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <FunnelIcon className="size-4 shrink-0 text-muted-foreground" />
       {filter.map((condition, index) => (
-        <Badge key={`${condition.field}-${index}`} variant="secondary" className="gap-1">
-          {formatFilterConditionLabel(condition, {
-            users: draft.userLabels,
-            customers: draft.customerLabels,
-            customFields: draft.customFieldLabels,
-          })}
+        <Badge
+          key={`${condition.field}-${index}`}
+          variant="secondary"
+          className="max-w-full gap-1"
+        >
+          <span className="truncate">
+            {formatFilterConditionLabel(condition, {
+              users: draft.userLabels,
+              customers: draft.customerLabels,
+              customFields: draft.customFieldLabels,
+            })}
+          </span>
           <button
             type="button"
             className="rounded-sm opacity-70 hover:opacity-100"
@@ -61,7 +67,10 @@ export function BoardFilterBar({
             Filter
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 space-y-3">
+        <PopoverContent
+          align="start"
+          className="w-[min(20rem,calc(100vw-2rem))] space-y-3"
+        >
           <FilterPopoverForm
             field={draft.field}
             onFieldChange={draft.handleFieldChange}

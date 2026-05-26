@@ -21,13 +21,23 @@ import {
   visibleIdsForLane,
 } from "@/components/board/board-lane-order-client";
 import {
+  applyTicketDrop,
   findLaneIdForTicket,
   findTicketInLanes,
-  moveTicketBetweenLanes,
-  reorderTicketInLane,
+  resolveDropIndex,
   resolveDropLaneId,
 } from "@/components/board/board-dnd-utils";
 import type { BoardLane, BoardTicket } from "@/components/board/types";
+
+export type DropPreview = {
+  laneId: string;
+  index: number;
+};
+
+export type BoardDragSession = {
+  active: boolean;
+  mutedUntil: number;
+};
 
 const REALTIME_MUTE_MS = 600;
 
@@ -44,7 +54,6 @@ type UseBoardDragOptions = {
   sortMode: BoardSort["mode"];
   onDragCommitManual: () => void;
   onMoveError: (message: string) => void;
-  muteRealtimeUntilRef: React.MutableRefObject<number>;
   reloadBoard: () => void;
 };
 
@@ -55,12 +64,19 @@ export function useBoardDrag({
   sortMode,
   onDragCommitManual,
   onMoveError,
-  muteRealtimeUntilRef,
   reloadBoard,
 }: UseBoardDragOptions) {
   const [activeTicket, setActiveTicket] = useState<BoardTicket | null>(null);
+  const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
   const lanesAtDragStart = useRef<BoardLane[] | null>(null);
+  const lanesRef = useRef(lanes);
+  const dragSessionRef = useRef<BoardDragSession>({
+    active: false,
+    mutedUntil: 0,
+  });
   const wasManualAtDragStart = useRef(false);
+
+  lanesRef.current = lanes;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -72,8 +88,18 @@ export function useBoardDrag({
     lanesAtDragStart.current = null;
   }, [setLanes]);
 
+  const clearDrag = useCallback(() => {
+    dragSessionRef.current.active = false;
+    setActiveTicket(null);
+    setDropPreview(null);
+  }, []);
+
   const onDragStart = useCallback(
     (event: DragStartEvent) => {
+      dragSessionRef.current = {
+        active: true,
+        mutedUntil: Date.now() + REALTIME_MUTE_MS,
+      };
       lanesAtDragStart.current = lanes;
       wasManualAtDragStart.current = sortMode === "manual";
       const match = findTicketInLanes(lanes, String(event.active.id));
@@ -84,91 +110,92 @@ export function useBoardDrag({
 
   const onDragCancel = useCallback(
     (_event: DragCancelEvent) => {
-      setActiveTicket(null);
+      clearDrag();
       revertDrag();
     },
-    [revertDrag],
+    [clearDrag, revertDrag],
   );
 
-  const onDragOver = useCallback(
-    (event: DragOverEvent) => {
-      const { active, over } = event;
-      if (!over) return;
-      const ticketId = String(active.id);
-      const overId = String(over.id);
-      if (ticketId === overId) return;
-      setLanes((current) => {
-        const fromLaneId = findLaneIdForTicket(lanes, ticketId);
-        const toLaneId = resolveDropLaneId(lanes, overId);
-        if (!fromLaneId || !toLaneId || fromLaneId === toLaneId) return current;
+  const onDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event;
+    if (!over) {
+      setDropPreview(null);
+      return;
+    }
 
-        return (
-          moveTicketBetweenLanes(current, ticketId, fromLaneId, toLaneId, overId) ??
-          current
-        );
-      });
-    },
-    [lanes, setLanes],
-  );
+    const ticketId = String(active.id);
+    const overId = String(over.id);
+    if (ticketId === overId) {
+      setDropPreview(null);
+      return;
+    }
+
+    const current = lanesRef.current;
+    const fromLaneId = findLaneIdForTicket(current, ticketId);
+    const toLaneId = resolveDropLaneId(current, overId);
+    if (!fromLaneId || !toLaneId) {
+      setDropPreview(null);
+      return;
+    }
+
+    setDropPreview({
+      laneId: toLaneId,
+      index: resolveDropIndex(current, toLaneId, overId),
+    });
+  }, []);
 
   const onDragEnd = useCallback(
     async (event: DragEndEvent) => {
       setActiveTicket(null);
-      const { active, over } = event;
-
-      if (!over) {
-        revertDrag();
-        return;
-      }
-
-      const ticketId = String(active.id);
-      const overId = String(over.id);
-      const startLanes = lanesAtDragStart.current ?? lanes;
-      const startMatch = findTicketInLanes(startLanes, ticketId);
-      if (!startMatch) {
-        revertDrag();
-        return;
-      }
-
-      const fromLaneId = startMatch.laneId;
-      const toLaneId = resolveDropLaneId(lanes, overId);
-      if (!toLaneId) {
-        revertDrag();
-        return;
-      }
-
-      muteRealtimeUntilRef.current = Date.now() + REALTIME_MUTE_MS;
-      onMoveError("");
-
-      const crossLane = fromLaneId !== toLaneId;
-      let finalLanes = lanes;
-
+      setDropPreview(null);
       try {
-        if (!crossLane) {
-          if (overId === toLaneId) {
-            revertDrag();
-            return;
-          }
-          const reordered = reorderTicketInLane(lanes, fromLaneId, ticketId, overId);
-          if (!reordered) {
-            revertDrag();
-            return;
-          }
-          finalLanes = reordered;
-          setLanes(reordered);
-        } else if (findLaneIdForTicket(lanes, ticketId) !== toLaneId) {
-          const moved = moveTicketBetweenLanes(
-            lanes,
-            ticketId,
-            fromLaneId,
-            toLaneId,
-            overId,
-          );
-          if (moved) {
-            finalLanes = moved;
-            setLanes(moved);
-          }
+        const { active, over } = event;
+
+        if (!over) {
+          revertDrag();
+          return;
         }
+
+        const ticketId = String(active.id);
+        const overId = String(over.id);
+        const startLanes = lanesAtDragStart.current ?? lanesRef.current;
+        const startMatch = findTicketInLanes(startLanes, ticketId);
+        if (!startMatch) {
+          revertDrag();
+          return;
+        }
+
+        const fromLaneId = startMatch.laneId;
+        const latestLanes = lanesRef.current;
+        const toLaneId = resolveDropLaneId(latestLanes, overId);
+        if (!toLaneId) {
+          revertDrag();
+          return;
+        }
+
+        dragSessionRef.current.mutedUntil = Date.now() + REALTIME_MUTE_MS;
+        onMoveError("");
+
+        const crossLane = fromLaneId !== toLaneId;
+        if (!crossLane && overId === toLaneId) {
+          revertDrag();
+          return;
+        }
+
+        const insertIndex = resolveDropIndex(latestLanes, toLaneId, overId);
+        const moved = applyTicketDrop(
+          latestLanes,
+          ticketId,
+          fromLaneId,
+          toLaneId,
+          insertIndex,
+        );
+        if (!moved) {
+          revertDrag();
+          return;
+        }
+        const finalLanes = moved;
+        setLanes(moved);
 
         if (!wasManualAtDragStart.current) {
           await seedManualOrder(startLanes, {
@@ -204,11 +231,11 @@ export function useBoardDrag({
         revertDrag();
         onMoveError("Could not save card changes. Changes were reverted.");
         reloadBoard();
+      } finally {
+        dragSessionRef.current.active = false;
       }
     },
     [
-      lanes,
-      muteRealtimeUntilRef,
       onDragCommitManual,
       onMoveError,
       reloadBoard,
@@ -222,6 +249,8 @@ export function useBoardDrag({
     sensors,
     collisionDetection,
     activeTicket,
+    dropPreview,
+    dragSessionRef,
     onDragStart,
     onDragOver,
     onDragEnd,

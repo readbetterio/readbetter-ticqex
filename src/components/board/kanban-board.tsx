@@ -13,6 +13,7 @@ import { useBoardView } from "@/hooks/use-board-view";
 import { useBoardQuery, type BoardResponse } from "@/hooks/use-board-query";
 import { useBoardDrag } from "@/hooks/use-board-drag";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
+import { useBoardLaneLoadMore } from "@/hooks/use-board-lane-load-more";
 import { seedManualOrder } from "./board-lane-order-client";
 import { BoardFilterBar } from "./board-filter-bar";
 import { BoardSearchBar } from "./board-search-bar";
@@ -45,13 +46,19 @@ export function KanbanBoard() {
   const capped = boardQuery.data?.capped ?? false;
   const subsetActive = viewNarrowedActive || capped;
 
+  const { loadMore, loadingLaneIds } = useBoardLaneLoadMore({
+    filter,
+    sort: querySort,
+    searchQuery,
+    searchActive,
+  });
+
   const [allStatuses, setAllStatuses] = useState<{ id: string; name: string }[]>(
     [],
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
-  const muteRealtimeUntil = useRef(0);
   const statusesLoaded = useRef(false);
 
   const loading = boardQuery.isPending && !boardQuery.data;
@@ -110,8 +117,6 @@ export function KanbanBoard() {
     [queryClient],
   );
 
-  useBoardRealtime(reloadBoard, muteRealtimeUntil);
-
   const handleBoardChange = useCallback(
     (updated?: TicketDetail) => {
       if (updated && updated.unread_count === 0) {
@@ -153,6 +158,8 @@ export function KanbanBoard() {
     sensors,
     collisionDetection,
     activeTicket,
+    dropPreview,
+    dragSessionRef,
     onDragStart,
     onDragOver,
     onDragEnd,
@@ -164,32 +171,40 @@ export function KanbanBoard() {
     sortMode: sort.mode,
     onDragCommitManual,
     onMoveError: setMoveError,
-    muteRealtimeUntilRef: muteRealtimeUntil,
     reloadBoard,
   });
+
+  useBoardRealtime(reloadBoard, dragSessionRef);
 
   const hasSearchResults = lanes.some((lane) => lane.tickets.length > 0);
 
   const header = (
-    <div className="flex shrink-0 items-start gap-3 px-4 pt-3">
-      <div className="min-w-0 flex-1">
-        <BoardFilterBar filter={filter} onFilterChange={setFilter} />
-      </div>
-      <BoardSearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        className="shrink-0"
-      />
-      <div className="flex shrink-0 items-center gap-2">
-        <span className="text-sm text-muted-foreground">Sort:</span>
-        <BoardSortSelect
-          sort={sort}
-          onSortChange={(next) => void handleSortChange(next)}
+    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
+      <BoardFilterBar filter={filter} onFilterChange={setFilter} />
+      <div className="flex min-w-[min(100%,18rem)] flex-1 items-center justify-end gap-2 max-sm:w-full sm:gap-3">
+        <BoardSearchBar
+          value={searchQuery}
+          onChange={setSearchQuery}
+          className="w-full sm:max-w-xs lg:w-72"
         />
-        <Button size="sm" className="shrink-0" onClick={() => setShowCreate(true)}>
-          <PlusIcon />
-          New Ticket
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">
+            Sort:
+          </span>
+          <BoardSortSelect
+            sort={sort}
+            onSortChange={(next) => void handleSortChange(next)}
+          />
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => setShowCreate(true)}
+            aria-label="New ticket"
+          >
+            <PlusIcon />
+            <span className="hidden sm:inline">New Ticket</span>
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -197,10 +212,12 @@ export function KanbanBoard() {
   if (loading) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-start gap-3 px-4 pt-3">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="mx-auto h-8 w-72" />
-          <Skeleton className="h-8 w-56" />
+        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
+          <Skeleton className="h-8 w-24" />
+          <div className="flex flex-1 items-center justify-end gap-2 max-sm:w-full">
+            <Skeleton className="h-8 w-full sm:max-w-xs lg:w-72" />
+            <Skeleton className="h-8 w-56" />
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
           <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
@@ -263,6 +280,14 @@ export function KanbanBoard() {
                   lane={lane}
                   sortable
                   onTicketClick={setSelectedId}
+                  hasMore={searchActive ? false : (lane.has_more ?? false)}
+                  loadingMore={loadingLaneIds.has(lane.status.id)}
+                  onLoadMore={() => void loadMore(lane)}
+                  dropPreviewIndex={
+                    dropPreview?.laneId === lane.status.id
+                      ? dropPreview.index
+                      : null
+                  }
                 />
               ))}
             </div>

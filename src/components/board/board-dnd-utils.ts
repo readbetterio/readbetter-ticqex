@@ -1,4 +1,3 @@
-import { arrayMove } from "@dnd-kit/sortable";
 import type { BoardLane, BoardTicket } from "./types";
 
 export function laneOrderPayload(
@@ -44,55 +43,59 @@ export function resolveDropLaneId(lanes: BoardLane[], overId: string): string | 
   return findLaneIdForTicket(lanes, overId);
 }
 
-export function reorderTicketInLane(
+export function resolveDropIndex(
   lanes: BoardLane[],
-  laneId: string,
-  ticketId: string,
-  overTicketId: string,
-): BoardLane[] | null {
-  const lane = lanes.find((entry) => entry.status.id === laneId);
-  if (!lane) return null;
+  toLaneId: string,
+  overId: string,
+): number {
+  const targetLane = lanes.find((entry) => entry.status.id === toLaneId);
+  if (!targetLane) return 0;
 
-  const oldIndex = lane.tickets.findIndex((ticket) => ticket.id === ticketId);
-  const newIndex = lane.tickets.findIndex((ticket) => ticket.id === overTicketId);
-  if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return null;
+  if (overId === toLaneId) return targetLane.tickets.length;
 
-  const nextTickets = arrayMove(lane.tickets, oldIndex, newIndex);
-  return lanes.map((entry) =>
-    entry.status.id === laneId ? { ...entry, tickets: nextTickets } : entry,
-  );
+  const overIndex = targetLane.tickets.findIndex((ticket) => ticket.id === overId);
+  return overIndex >= 0 ? overIndex : targetLane.tickets.length;
 }
 
-export function moveTicketBetweenLanes(
+export function applyTicketDrop(
   lanes: BoardLane[],
   ticketId: string,
   fromLaneId: string,
   toLaneId: string,
-  overId: string,
+  insertIndex: number,
 ): BoardLane[] | null {
-  if (fromLaneId === toLaneId) return null;
+  const fromLane = lanes.find((entry) => entry.status.id === fromLaneId);
+  const toLane = lanes.find((entry) => entry.status.id === toLaneId);
+  if (!fromLane || !toLane) return null;
 
-  const sourceLane = lanes.find((entry) => entry.status.id === fromLaneId);
-  const targetLane = lanes.find((entry) => entry.status.id === toLaneId);
-  if (!sourceLane || !targetLane) return null;
+  const ticketIndex = fromLane.tickets.findIndex(
+    (entry) => entry.id === ticketId,
+  );
+  if (ticketIndex === -1) return null;
+  const ticket = fromLane.tickets[ticketIndex]!;
 
-  const activeIndex = sourceLane.tickets.findIndex((ticket) => ticket.id === ticketId);
-  if (activeIndex === -1) return null;
-
-  const ticket = sourceLane.tickets[activeIndex]!;
-  let insertIndex = targetLane.tickets.length;
-  if (overId !== toLaneId) {
-    const overIndex = targetLane.tickets.findIndex((ticket) => ticket.id === overId);
-    if (overIndex >= 0) insertIndex = overIndex;
+  if (fromLaneId === toLaneId) {
+    const nextTickets = [...fromLane.tickets];
+    nextTickets.splice(ticketIndex, 1);
+    const adjustedIndex =
+      ticketIndex < insertIndex ? insertIndex - 1 : insertIndex;
+    nextTickets.splice(adjustedIndex, 0, ticket);
+    return lanes.map((entry) =>
+      entry.status.id === fromLaneId
+        ? { ...entry, tickets: nextTickets }
+        : entry,
+    );
   }
 
-  const nextSourceTickets = sourceLane.tickets.filter((entry) => entry.id !== ticketId);
-  const nextTargetTickets = [...targetLane.tickets];
+  const nextFromTickets = fromLane.tickets.filter(
+    (entry) => entry.id !== ticketId,
+  );
+  const nextTargetTickets = [...toLane.tickets];
   nextTargetTickets.splice(insertIndex, 0, ticket);
 
   return lanes.map((entry) => {
     if (entry.status.id === fromLaneId) {
-      return { ...entry, tickets: nextSourceTickets };
+      return { ...entry, tickets: nextFromTickets };
     }
     if (entry.status.id === toLaneId) {
       return { ...entry, tickets: nextTargetTickets };
