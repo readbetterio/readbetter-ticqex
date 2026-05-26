@@ -1,6 +1,6 @@
 /**
  * Quick sanity check that the dev environment is wired correctly.
- * Does not start services — run after `pnpm env:sync` and before `pnpm dev:all`.
+ * Does not start services — run after `pnpm env:sync` and before `pnpm dev`.
  */
 const checks: { name: string; ok: boolean; hint?: string }[] = [];
 
@@ -14,14 +14,9 @@ requireEnv("SUPABASE_SERVICE_ROLE_KEY", "pnpm db:env");
 requireEnv("RESEND_API_KEY", "harness / .env.local");
 requireEnv("RESEND_INBOUND_WEBHOOK_SECRET", "harness / Resend webhook signing secret");
 requireEnv("SUPPORT_EMAIL", "harness");
-requireEnv("TRIGGER_SECRET_KEY", "pnpm trigger:env");
-requireEnv("TRIGGER_PROJECT_REF", "harness / trigger.config.ts");
 requireEnv("NEXT_PUBLIC_APP_URL", "https://readbetter.rbouschery.de when tunnel is up");
 
-const optional = [
-  "TRIGGER_ACCESS_TOKEN",
-  "CLOUDFLARE_TUNNEL_TOKEN",
-] as const;
+const optional = ["CLOUDFLARE_TUNNEL_TOKEN"] as const;
 for (const key of optional) {
   checks.push({
     name: `${key} (optional)`,
@@ -41,4 +36,4 @@ if (failed) {
   process.exit(1);
 }
 
-console.log("\nEnvironment looks ready for pnpm dev:all");
+console.log("\nEnvironment looks ready for pnpm dev");

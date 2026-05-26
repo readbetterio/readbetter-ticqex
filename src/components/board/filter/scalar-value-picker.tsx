@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   operatorNeedsValues,
+  TICKET_KIND_LABELS,
   type FilterOperator,
   type ScalarFilterField,
 } from "@shared/ticket-filter";
@@ -71,7 +72,10 @@ export function ScalarValuePicker({
       return (
         <MultiCheckboxList
           label="Kinds"
-          options={KIND_OPTIONS.map((value) => ({ value, label: value }))}
+          options={KIND_OPTIONS.map((value) => ({
+            value,
+            label: TICKET_KIND_LABELS[value] ?? value,
+          }))}
           selected={multiValues}
           onToggle={onToggleMultiValue}
         />
@@ -138,7 +142,7 @@ export function ScalarValuePicker({
           <SelectContent>
             {KIND_OPTIONS.map((value) => (
               <SelectItem key={value} value={value}>
-                {value}
+                {TICKET_KIND_LABELS[value] ?? value}
               </SelectItem>
             ))}
           </SelectContent>

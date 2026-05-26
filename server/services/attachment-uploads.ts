@@ -80,7 +80,7 @@ export async function stageAttachmentUpload(
     .maybeSingle();
   if (!ticket) throw ApiError.notFound("Ticket not found");
   if (!isConversationTicket(ticket as TicketRow)) {
-    throw ApiError.badRequest("Task tickets do not support message attachments");
+    throw ApiError.badRequest("This ticket does not support message attachments");
   }
 
   const uploadId = crypto.randomUUID();

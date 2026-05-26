@@ -46,25 +46,32 @@ export async function enrichTicketsForBoard(
     }
   }
 
-  return ticketRows.map((t) => ({
-    id: t.id,
-    title: t.title,
-    kind: t.kind,
-    channel: t.channel ?? null,
-    origin: t.origin,
-    customer_id: t.customer_id,
-    assignee_id: t.assignee_id,
-    preview: previews.get(t.id) ?? "",
-    customer: t.customers
+  return ticketRows.map((t) => {
+    const tags = tagsMap.get(t.id) ?? [];
+    const custom_fields = fieldsMap.get(t.id) ?? {};
+    const customer = t.customers
       ? { username: t.customers.username, initials: initials(t.customers.username) }
-      : null,
-    assignee: t.users
+      : null;
+    const assignee = t.users
       ? { username: t.users.username, initials: initials(t.users.username) }
-      : null,
-    custom_fields: fieldsMap.get(t.id) ?? {},
-    tags: tagsMap.get(t.id) ?? [],
-    created_at: t.created_at,
-    updated_at: t.updated_at,
-    unread_count: unreadCounts.get(t.id) ?? 0,
-  }));
+      : null;
+
+    return {
+      id: t.id,
+      title: t.title,
+      kind: t.kind,
+      channel: t.channel ?? null,
+      origin: t.origin,
+      customer_id: t.customer_id,
+      assignee_id: t.assignee_id,
+      preview: previews.get(t.id) ?? "",
+      customer,
+      assignee,
+      custom_fields,
+      tags,
+      created_at: t.created_at,
+      updated_at: t.updated_at,
+      unread_count: unreadCounts.get(t.id) ?? 0,
+    };
+  });
 }

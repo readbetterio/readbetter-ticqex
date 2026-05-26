@@ -63,9 +63,8 @@ Exception: **Supabase Realtime** subscriptions in the admin UI for live Kanban u
 
 ### 3. Boring stack, sharp edges
 
-- **Next.js** on Vercel — Route Handlers as the API surface
+- **Next.js** on Vercel — Route Handlers as the API surface; `after()` for async email
 - **Supabase** — Postgres, Auth, RLS, Realtime, Storage (all-in; no abstraction layer for v1)
-- **Trigger.dev** — inbound/outbound email processing, scheduled jobs
 - **Resend** — email provider behind a swappable adapter interface
 
 Business logic lives in a **service layer** (`/server` or `/lib`) so the API can be extracted to a standalone service later without a rewrite.

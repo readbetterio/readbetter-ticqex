@@ -274,7 +274,7 @@ export async function updateTicket(
   const ticket = await loadTicketRow(id);
 
   if (input.body !== undefined && !isTaskTicket(ticket)) {
-    throw ApiError.badRequest("Only task tickets have a body field");
+    throw ApiError.badRequest("Only tickets support a description body");
   }
 
   const previousStatusId = ticket.status_id;

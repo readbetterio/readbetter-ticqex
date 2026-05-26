@@ -3,7 +3,7 @@ import { jsonData } from "@server/lib/response";
 import { withAuth, parseJsonBody } from "@server/lib/route-handler";
 import { messageInputSchema, parseBody } from "@server/lib/validation/schemas";
 import { createAgentReply, listMessages } from "@server/services/messages";
-import { enqueueOutboundEmail } from "@server/adapters/email/outbound";
+import { enqueueOutboundEmail } from "@server/adapters/email/background";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
 
     if (shouldSendEmail) {
-      await enqueueOutboundEmail(message.id);
+      enqueueOutboundEmail(message.id);
     }
 
     return jsonData(message, 201);

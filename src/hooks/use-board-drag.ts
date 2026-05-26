@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
   type CollisionDetection,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -28,7 +29,6 @@ import {
 } from "@/components/board/board-dnd-utils";
 import type { BoardLane, BoardTicket } from "@/components/board/types";
 
-const MANUAL_SORT: BoardSort = { mode: "manual" };
 const REALTIME_MUTE_MS = 600;
 
 const collisionDetection: CollisionDetection = (args) => {
@@ -40,24 +40,22 @@ const collisionDetection: CollisionDetection = (args) => {
 type UseBoardDragOptions = {
   lanes: BoardLane[];
   setLanes: React.Dispatch<React.SetStateAction<BoardLane[]>>;
-  filterActive: boolean;
+  subsetActive: boolean;
   sortMode: BoardSort["mode"];
-  setSort: (sort: BoardSort) => void;
+  onDragCommitManual: () => void;
   onMoveError: (message: string) => void;
   muteRealtimeUntilRef: React.MutableRefObject<number>;
-  suppressNextBoardLoadRef: React.MutableRefObject<boolean>;
   reloadBoard: () => void;
 };
 
 export function useBoardDrag({
   lanes,
   setLanes,
-  filterActive,
+  subsetActive,
   sortMode,
-  setSort,
+  onDragCommitManual,
   onMoveError,
   muteRealtimeUntilRef,
-  suppressNextBoardLoadRef,
   reloadBoard,
 }: UseBoardDragOptions) {
   const [activeTicket, setActiveTicket] = useState<BoardTicket | null>(null);
@@ -68,18 +66,28 @@ export function useBoardDrag({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
+  const revertDrag = useCallback(() => {
+    const snapshot = lanesAtDragStart.current;
+    if (snapshot) setLanes(snapshot);
+    lanesAtDragStart.current = null;
+  }, [setLanes]);
+
   const onDragStart = useCallback(
     (event: DragStartEvent) => {
       lanesAtDragStart.current = lanes;
       wasManualAtDragStart.current = sortMode === "manual";
       const match = findTicketInLanes(lanes, String(event.active.id));
       if (match) setActiveTicket(match.ticket);
-      if (!wasManualAtDragStart.current) {
-        suppressNextBoardLoadRef.current = true;
-        setSort(MANUAL_SORT);
-      }
     },
-    [lanes, setSort, sortMode, suppressNextBoardLoadRef],
+    [lanes, sortMode],
+  );
+
+  const onDragCancel = useCallback(
+    (_event: DragCancelEvent) => {
+      setActiveTicket(null);
+      revertDrag();
+    },
+    [revertDrag],
   );
 
   const onDragOver = useCallback(
@@ -90,30 +98,44 @@ export function useBoardDrag({
       const overId = String(over.id);
       if (ticketId === overId) return;
       setLanes((current) => {
-        const fromLaneId = findLaneIdForTicket(current, ticketId);
-        const toLaneId = resolveDropLaneId(current, overId);
+        const fromLaneId = findLaneIdForTicket(lanes, ticketId);
+        const toLaneId = resolveDropLaneId(lanes, overId);
         if (!fromLaneId || !toLaneId || fromLaneId === toLaneId) return current;
-        return moveTicketBetweenLanes(current, ticketId, fromLaneId, toLaneId, overId) ?? current;
+
+        return (
+          moveTicketBetweenLanes(current, ticketId, fromLaneId, toLaneId, overId) ??
+          current
+        );
       });
     },
-    [setLanes],
+    [lanes, setLanes],
   );
 
   const onDragEnd = useCallback(
     async (event: DragEndEvent) => {
       setActiveTicket(null);
       const { active, over } = event;
-      if (!over) return;
+
+      if (!over) {
+        revertDrag();
+        return;
+      }
 
       const ticketId = String(active.id);
       const overId = String(over.id);
       const startLanes = lanesAtDragStart.current ?? lanes;
       const startMatch = findTicketInLanes(startLanes, ticketId);
-      if (!startMatch) return;
+      if (!startMatch) {
+        revertDrag();
+        return;
+      }
 
       const fromLaneId = startMatch.laneId;
       const toLaneId = resolveDropLaneId(lanes, overId);
-      if (!toLaneId) return;
+      if (!toLaneId) {
+        revertDrag();
+        return;
+      }
 
       muteRealtimeUntilRef.current = Date.now() + REALTIME_MUTE_MS;
       onMoveError("");
@@ -123,13 +145,25 @@ export function useBoardDrag({
 
       try {
         if (!crossLane) {
-          if (overId === toLaneId) return;
+          if (overId === toLaneId) {
+            revertDrag();
+            return;
+          }
           const reordered = reorderTicketInLane(lanes, fromLaneId, ticketId, overId);
-          if (!reordered) return;
+          if (!reordered) {
+            revertDrag();
+            return;
+          }
           finalLanes = reordered;
           setLanes(reordered);
         } else if (findLaneIdForTicket(lanes, ticketId) !== toLaneId) {
-          const moved = moveTicketBetweenLanes(lanes, ticketId, fromLaneId, toLaneId, overId);
+          const moved = moveTicketBetweenLanes(
+            lanes,
+            ticketId,
+            fromLaneId,
+            toLaneId,
+            overId,
+          );
           if (moved) {
             finalLanes = moved;
             setLanes(moved);
@@ -139,7 +173,7 @@ export function useBoardDrag({
         if (!wasManualAtDragStart.current) {
           await seedManualOrder(startLanes, {
             onlyIfEmpty: false,
-            mergeVisible: filterActive,
+            mergeVisible: subsetActive,
           });
         }
 
@@ -152,7 +186,7 @@ export function useBoardDrag({
             ? { source_ticket_ids: visibleIdsForLane(finalLanes, fromLaneId) }
             : {}),
           filter_context: buildFilterContext({
-            filterActive,
+            subsetActive,
             startLanes,
             fromLaneId,
             toLaneId,
@@ -160,15 +194,37 @@ export function useBoardDrag({
             crossLane,
           }),
         });
+
+        if (!wasManualAtDragStart.current) {
+          onDragCommitManual();
+        }
+
+        lanesAtDragStart.current = null;
       } catch {
+        revertDrag();
         onMoveError("Could not save card changes. Changes were reverted.");
         reloadBoard();
-      } finally {
-        lanesAtDragStart.current = null;
       }
     },
-    [filterActive, lanes, muteRealtimeUntilRef, onMoveError, reloadBoard, setLanes],
+    [
+      lanes,
+      muteRealtimeUntilRef,
+      onDragCommitManual,
+      onMoveError,
+      reloadBoard,
+      revertDrag,
+      setLanes,
+      subsetActive,
+    ],
   );
 
-  return { sensors, collisionDetection, activeTicket, onDragStart, onDragOver, onDragEnd };
+  return {
+    sensors,
+    collisionDetection,
+    activeTicket,
+    onDragStart,
+    onDragOver,
+    onDragEnd,
+    onDragCancel,
+  };
 }

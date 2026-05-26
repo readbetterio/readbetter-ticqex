@@ -93,7 +93,7 @@ export async function loadAttachmentsForMessages(messageIds: string[]) {
 async function loadMessageTicket(ticketId: string): Promise<TicketRow> {
   const ticket = await loadTicketRow(ticketId);
   if (!isConversationTicket(ticket)) {
-    throw ApiError.badRequest("Task tickets do not have messages");
+    throw ApiError.badRequest("This ticket does not have a message thread");
   }
   return ticket;
 }

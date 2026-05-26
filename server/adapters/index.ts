@@ -1,3 +1,4 @@
 export * from "./email/types";
 export { resendAdapter, createResendAdapter } from "./email/resend";
-export { sendOutboundEmailForMessage, enqueueOutboundEmail } from "./email/outbound";
+export { enqueueInboundEmail, enqueueOutboundEmail } from "./email/background";
+export { sendOutboundEmailForMessage } from "./email/outbound";

@@ -31,11 +31,22 @@ async function queryTicketIds(
   db: SupabaseClient,
   apply: (query: TicketIdQuery) => TicketIdQuery,
 ): Promise<Set<string>> {
-  const { data, error } = await apply(db.from("tickets").select("id"));
-  if (error) throw ApiError.internal(error.message);
-  return new Set(
-    (data ?? []).map((row) => (row as { id: string }).id),
-  );
+  const ids = new Set<string>();
+  const pageSize = 1000;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await apply(db.from("tickets").select("id")).range(
+      from,
+      from + pageSize - 1,
+    );
+    if (error) throw ApiError.internal(error.message);
+    for (const row of data ?? []) {
+      ids.add((row as { id: string }).id);
+    }
+    if (!data?.length || data.length < pageSize) break;
+  }
+
+  return ids;
 }
 
 async function queryTicketIdsExcluding(

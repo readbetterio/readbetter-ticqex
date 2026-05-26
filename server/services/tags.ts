@@ -1,5 +1,6 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
+import { chunkArray } from "@server/lib/chunked-array";
 
 export async function listTags() {
   const db = createAdminClient();
@@ -90,16 +91,18 @@ export async function loadTagsForTickets(ticketIds: string[]) {
   const map = new Map<string, { id: string; name: string; color: string }[]>();
   if (!ticketIds.length) return map;
 
-  const { data } = await db
-    .from("ticket_tags")
-    .select("ticket_id, tags(id, name, color)")
-    .in("ticket_id", ticketIds);
+  for (const chunk of chunkArray(ticketIds)) {
+    const { data } = await db
+      .from("ticket_tags")
+      .select("ticket_id, tags(id, name, color)")
+      .in("ticket_id", chunk);
 
-  for (const row of data ?? []) {
-    const tag = row.tags as unknown as { id: string; name: string; color: string };
-    const list = map.get(row.ticket_id as string) ?? [];
-    list.push(tag);
-    map.set(row.ticket_id as string, list);
+    for (const row of data ?? []) {
+      const tag = row.tags as unknown as { id: string; name: string; color: string };
+      const list = map.get(row.ticket_id as string) ?? [];
+      list.push(tag);
+      map.set(row.ticket_id as string, list);
+    }
   }
   return map;
 }

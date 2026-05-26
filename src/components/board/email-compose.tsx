@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { PaperclipIcon, XIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { usePersistedExpanded } from "@/hooks/use-persisted-expanded";
 import { useEmailSnippets } from "@/hooks/use-email-snippets";
 import { uploadAttachment } from "./attachment-upload";
 import { CcChipInput } from "./cc-chip-input";
@@ -57,6 +60,10 @@ export function EmailCompose({
   const { snippets } = useEmailSnippets();
   const [snippetId, setSnippetId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { expanded, toggleExpanded, hydrated } = usePersistedExpanded(
+    "ticqex.email-compose.expanded.v1",
+    false,
+  );
 
   const resetEmailFields = useCallback(() => {
     setCc([]);
@@ -117,10 +124,32 @@ export function EmailCompose({
   }
 
   return (
-    <form
-      onSubmit={(e) => void handleSubmit(e)}
-      className="p-4"
+    <div
+      className={cn(
+        "flex flex-col",
+        expanded && "max-h-[min(45vh,24rem)] min-h-0",
+      )}
     >
+      <button
+        type="button"
+        className="flex w-full shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+        aria-expanded={expanded}
+        onClick={toggleExpanded}
+      >
+        {expanded ? (
+          <ChevronDown className="size-3.5 shrink-0" />
+        ) : (
+          <ChevronRight className="size-3.5 shrink-0" />
+        )}
+        Reply
+      </button>
+
+      {hydrated && expanded && (
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <form
+            onSubmit={(e) => void handleSubmit(e)}
+            className="p-4"
+          >
       <div className="mb-3 space-y-3">
         <div className="flex flex-wrap gap-2">
           <Button
@@ -252,6 +281,9 @@ export function EmailCompose({
           Send email
         </Button>
       </div>
-    </form>
+          </form>
+        </div>
+      )}
+    </div>
   );
 }

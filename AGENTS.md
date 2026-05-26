@@ -22,9 +22,7 @@ Further integration detail: [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md).
 
 | Service | Command | Port | Notes |
 |---------|---------|------|-------|
-| Next.js dev server | `pnpm dev` | 3000 | App UI + API routes; loads `.env.local` |
-| Trigger.dev dev | `pnpm trigger:dev` | — | Optional local worker; see [Trigger.dev](#triggerdev) |
-| Next + Trigger + watchdog | `pnpm dev:all` | 3000 | **Use this.** One instance only. |
+| Next.js dev server | `pnpm dev` | 3000 | App UI + API routes + background email via `after()` |
 | Supabase local | `pnpm db:start` | 54321 (API), 54322 (DB), 54323 (Studio) | Requires Docker |
 | Cloudflare tunnel | `cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN"` | — | Proxies public hostname → `localhost:3000` |
 
@@ -43,9 +41,6 @@ Typically provided:
 |----------|------------|-------|
 | `RESEND_API_KEY` | Yes | Outbound + Resend API |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Yes | Svix signing secret (`whsec_...`) from Resend webhook details |
-| `TRIGGER_ACCESS_TOKEN` | Yes | Non-interactive Trigger CLI auth (see below) |
-| `TRIGGER_PROJECT_REF` | Yes | |
-| `TRIGGER_SECRET_KEY` | Yes | App can queue jobs without `trigger:dev` |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Yes | Run token for named tunnel `ticqex-dev` |
 | `SUPPORT_EMAIL` | Yes | Verified Resend sender |
 | `SUPPORT_FROM_NAME` | Yes | |
@@ -57,16 +52,15 @@ Next.js and scripts expect **`.env.local`** (gitignored). Sync everything in one
 ```bash
 cd /workspace
 pnpm db:start          # if not already running
-pnpm env:sync          # db:env + harness merge + trigger CLI config + trigger:env
+pnpm env:sync          # db:env + harness merge
 pnpm env:verify        # optional sanity check
 ```
 
 `pnpm env:sync` runs:
 1. `pnpm db:env` — Supabase JWT keys into `.env.local`
-2. `scripts/sync-cloud-env.ts` — merges harness secrets + writes `~/.config/trigger/config.json` from `TRIGGER_ACCESS_TOKEN`
-3. `pnpm trigger:env` — refreshes `TRIGGER_SECRET_KEY` in `.env.local`
+2. `scripts/sync-cloud-env.ts` — merges harness secrets
 
-Harness keys merged when present in `process.env`: `RESEND_API_KEY`, `RESEND_INBOUND_WEBHOOK_SECRET`, `SUPPORT_EMAIL`, `SUPPORT_FROM_NAME`, `TRIGGER_PROJECT_REF`, `TRIGGER_SECRET_KEY`, `NEXT_PUBLIC_APP_URL`.
+Harness keys merged when present in `process.env`: `RESEND_API_KEY`, `RESEND_INBOUND_WEBHOOK_SECRET`, `SUPPORT_EMAIL`, `SUPPORT_FROM_NAME`, `NEXT_PUBLIC_APP_URL`.
 
 Manual merge (if not using `pnpm env:sync`):
 
@@ -97,14 +91,14 @@ pnpm db:seed-admin
 pnpm env:sync
 pnpm db:seed-admin
 
-# 4. App (single instance — predev:all cleans stale processes + stuck Trigger runs)
-pnpm dev:all
+# 4. App
+pnpm dev
 
 # 5. Named tunnel (NOT quick tunnel) — separate terminal or background
 cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN"
 ```
 
-Do **not** start a second `pnpm dev:all`. A stale Next.js lock causes `concurrently --kill-others-on-fail` to kill the Trigger worker while webhooks keep queuing runs that never execute.
+Do **not** start a second `pnpm dev` on the same port.
 
 Install `cloudflared` if missing:
 
@@ -164,67 +158,25 @@ Use the **raw request body** (string) when verifying — re-stringifying parsed 
 
 Inbound receiving (MX/domain) must be enabled in Resend separately from the webhook.
 
-### Email architecture (Trigger-only)
+### Email architecture (Vercel `after()`)
 
-All email processing goes through Trigger.dev — **no inline fallback** in API routes.
+Async email work runs in the same Next.js process via [`after()`](https://nextjs.org/docs/app/api-reference/functions/after) from `next/server` — no external job runner.
 
-| Direction | Entry | Trigger task | Notes |
-|-----------|-------|--------------|-------|
-| Inbound | `POST /api/webhooks/resend/inbound` | `process-inbound-email` | Svix verify → queue; body fetched in task via `resolveInbound()` |
-| Outbound | `POST /api/v1/tickets/:id/messages` (public) | `send-outbound-email` | After DB insert; Resend send in task |
+| Direction | Entry | Background work | Notes |
+|-----------|-------|-----------------|-------|
+| Inbound | `POST /api/webhooks/resend/inbound` | `enqueueInboundEmail()` | Svix verify → `200`; body fetched in `resolveInbound()` |
+| Outbound | `POST /api/v1/tickets/:id/messages` (public) | `enqueueOutboundEmail()` | After DB insert; Resend send in background |
 
-Idempotency keys: `inbound:resend:{email_id}`, `outbound:message:{messageId}`. DB dedupe: `messages.resend_inbound_id`, `messages.email_message_id`.
+Implementation: `server/adapters/email/background.ts`. DB dedupe: `messages.resend_inbound_id`, `messages.email_message_id`.
 
-Missing `TRIGGER_SECRET_KEY` → inbound returns **503**, outbound throws.
-
-### Trigger.dev
-
-| Command | Purpose |
-|---------|---------|
-| `pnpm dev:all` | Next.js + `trigger:dev` + stuck-run watchdog |
-| `pnpm env:sync` | Supabase + harness + Trigger CLI + dev secret key |
-| `pnpm trigger:clean` | Cancel stuck runs + clear `.trigger` cache |
-| `pnpm trigger:smoke` | End-to-end inbound task health check |
-| `pnpm trigger:watchdog` | Auto-recovery (also runs inside `dev:all`) |
-
-| Auth | When |
-|------|------|
-| `TRIGGER_SECRET_KEY` in `.env.local` | App queues tasks via SDK |
-| `TRIGGER_ACCESS_TOKEN` → `~/.config/trigger/config.json` | Non-interactive `trigger dev` (via `pnpm env:sync`) |
-| `pnpm trigger:login` | Interactive fallback |
-
-`pnpm trigger:dev` loads `.env.local`, `--max-concurrent-runs 10`.
-
-**Stuck runs (`DEQUEUED` / `QUEUED`) — inbound or outbound not appearing:**
-
-```bash
-pnpm trigger:clean
-pnpm dev:all
-pnpm trigger:smoke     # inbound ok:true within ~10s
-pnpm env:verify
-```
-
-**Root causes:**
-- Only **one** `pnpm dev:all` at a time (see startup sequence).
-- Local Trigger worker occasionally misses dispatch; runs orphan in `DEQUEUED`.
-- `predev:all` kills stale processes and cancels stuck runs on startup.
-
-**Watchdog** (`scripts/trigger-stuck-watchdog.ts`, runs in `dev:all`): every 15s, finds email tasks stuck 20s+ in `DEQUEUED`/`QUEUED`, **re-triggers first** (uses `runs.retrieve` for payload — `runs.list` omits it), then cancels the stuck run best-effort. DB dedupe prevents double sends on outbound recovery.
-
-After code edits, worker version churn (e.g. `20260521.10` → `.11`) can leave old runs pending — `pnpm trigger:clean` and restart.
-
-Recovery is not instant — the watchdog polls every 15s and only acts on runs stuck 20s+. If email still missing after ~1 minute, run `pnpm trigger:clean && pnpm dev:all`.
-
-**Manual replay** (when watchdog or a single run still fails): cancel the stuck run (`pnpm trigger:clean` or Trigger dashboard), then re-trigger with a **new idempotency suffix** (e.g. `inbound:resend:{email_id}:replay1`). Re-using the same idempotency key after cancel returns the cancelled run instead of executing again.
-
-**Verify delivery in the database** — a webhook `200 {"accepted":true,"queued":true}` only means the Trigger task was queued, not that processing finished:
+**Verify delivery in the database** — a webhook `200 {"accepted":true}` means processing was scheduled, not necessarily finished:
 
 | Direction | Success signal |
 |-----------|----------------|
 | Inbound | New row in `tickets` / `messages`; body populated (not empty) |
 | Outbound | `messages.email_message_id` set (e.g. `<uuid@resend.dev>`) |
 
-**Debugging runs:** In the Trigger dashboard, filter by task `process-inbound-email` or `send-outbound-email`. Status `DEQUEUED` means the local worker did not pick up the run. Worker logs appear as `[trigger]` lines in the `pnpm dev:all` terminal.
+Errors are logged to the Next.js server console. Resend retries inbound webhooks on non-2xx responses.
 
 ### Inbound vs outbound addressing
 
@@ -248,7 +200,7 @@ These are separate Resend settings. Inbound needs receiving enabled; outbound ne
 
 ### Standard commands
 
-`pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm dev:all`, `pnpm env:sync`, `pnpm env:verify`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:env`, `pnpm db:seed-admin`, `pnpm trigger:login`, `pnpm trigger:create`, `pnpm trigger:env`, `pnpm trigger:dev`, `pnpm trigger:clean`, `pnpm trigger:smoke`, `pnpm trigger:watchdog`, `pnpm test:message-reads`.
+`pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm env:sync`, `pnpm env:verify`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:env`, `pnpm db:seed-admin`, `pnpm test:message-reads`.
 
 ### Agent workflow: finish work locally
 
@@ -270,11 +222,17 @@ When implementing features in this cloud VM, **be proactive** — do not stop at
    pnpm db:seed-admin
    ```
 
-3. **Start the app and health-check** — Use `pnpm dev` (UI/API only) or `pnpm dev:all` (email/Trigger flows). Confirm:
+3. **Start the app and health-check** — Use `pnpm dev`. Confirm:
    ```bash
    curl -s http://127.0.0.1:3000/api/health
    ```
    Expect `"database":"ok"`.
+
+   **Restart the dev server yourself** — Do not tell the user to restart. After server-side, API, or config changes (or when Turbopack shows stale parse/build errors), stop and restart locally:
+   ```bash
+   pnpm dev
+   ```
+   Then re-run the health check before handing off. Only one `pnpm dev` at a time.
 
 4. **Always test the change** — Verify end-to-end before finishing:
    - Run targeted smoke scripts when they exist (e.g. `pnpm test:message-reads` for read/unread).

@@ -91,6 +91,15 @@ const FIELD_LABELS: Record<string, string> = {
   ticket_field: "Field",
 };
 
+export const TICKET_KIND_LABELS: Record<string, string> = {
+  task: "Ticket",
+  conversation: "Email conversation",
+};
+
+function formatKindValue(value: string): string {
+  return TICKET_KIND_LABELS[value] ?? value;
+}
+
 export function formatFilterConditionLabel(
   condition: TicketFilterCondition,
   labels: {
@@ -130,6 +139,10 @@ export function formatFilterConditionLabel(
       }
       return `${fieldLabel} ${opLabel} ${labels.customers?.get(normalized.value!) ?? normalized.value}`;
     case "kind":
+      if (operatorNeedsValues(normalized.op)) {
+        return `${fieldLabel} ${opLabel} ${(normalized.values ?? []).map(formatKindValue).join(", ")}`;
+      }
+      return `${fieldLabel} ${opLabel} ${formatKindValue(normalized.value!)}`;
     case "channel":
     case "origin":
       if (operatorNeedsValues(normalized.op)) {

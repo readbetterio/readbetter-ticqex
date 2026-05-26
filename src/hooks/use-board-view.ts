@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   normalizeTicketFilter,
-  serializeTicketFilter,
   ticketFilterSchema,
   type TicketFilter,
 } from "@shared/ticket-filter";
@@ -21,18 +20,23 @@ const STORAGE_KEY = "ticqex.board.view.v1";
 type BoardViewState = {
   filter: TicketFilter;
   sort: BoardSort;
+  searchQuery: string;
 };
 
 function readStoredView(): BoardViewState {
   if (typeof window === "undefined") {
-    return { filter: [], sort: DEFAULT_BOARD_SORT };
+    return { filter: [], sort: DEFAULT_BOARD_SORT, searchQuery: "" };
   }
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as unknown;
-      const obj = parsed as { filter?: unknown; sort?: unknown };
+      const obj = parsed as {
+        filter?: unknown;
+        sort?: unknown;
+        searchQuery?: unknown;
+      };
       return {
         filter: normalizeTicketFilter(
           ticketFilterSchema.parse(obj.filter ?? []),
@@ -40,6 +44,8 @@ function readStoredView(): BoardViewState {
         sort: normalizeBoardSort(
           boardSortSchema.parse(obj.sort ?? DEFAULT_BOARD_SORT),
         ),
+        searchQuery:
+          typeof obj.searchQuery === "string" ? obj.searchQuery : "",
       };
     }
   } catch {
@@ -54,28 +60,34 @@ function readStoredView(): BoardViewState {
           ticketFilterSchema.parse(JSON.parse(legacy)),
         ),
         sort: DEFAULT_BOARD_SORT,
+        searchQuery: "",
       };
     }
   } catch {
     // ignore
   }
 
-  return { filter: [], sort: DEFAULT_BOARD_SORT };
+  return { filter: [], sort: DEFAULT_BOARD_SORT, searchQuery: "" };
 }
 
 function writeStoredView(view: BoardViewState) {
   const hasFilter = view.filter.length > 0;
   const hasCustomSort =
     serializeBoardSort(view.sort) !== serializeBoardSort(DEFAULT_BOARD_SORT);
+  const hasSearch = view.searchQuery.trim().length > 0;
 
-  if (!hasFilter && !hasCustomSort) {
+  if (!hasFilter && !hasCustomSort && !hasSearch) {
     localStorage.removeItem(STORAGE_KEY);
     return;
   }
 
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ filter: view.filter, sort: view.sort }),
+    JSON.stringify({
+      filter: view.filter,
+      sort: view.sort,
+      searchQuery: view.searchQuery,
+    }),
   );
 }
 
@@ -98,26 +110,27 @@ export function useBoardView() {
     });
   }, []);
 
-  const boardQueryString = useMemo(() => {
-    const params = new URLSearchParams();
-    if (view.filter.length > 0) {
-      params.set("filter", serializeTicketFilter(view.filter));
-    }
-    if (
-      serializeBoardSort(view.sort) !== serializeBoardSort(DEFAULT_BOARD_SORT)
-    ) {
-      params.set("sort", serializeBoardSort(view.sort));
-    }
-    const qs = params.toString();
-    return qs ? `?${qs}` : "";
-  }, [view.filter, view.sort]);
+  const setSearchQuery = useCallback((searchQuery: string) => {
+    setViewState((prev) => {
+      const next = { ...prev, searchQuery };
+      writeStoredView(next);
+      return next;
+    });
+  }, []);
+
+  const searchActive = view.searchQuery.trim().length > 0;
+  const filterActive = view.filter.length > 0;
+  const viewNarrowedActive = filterActive || searchActive;
 
   return {
     filter: view.filter,
     sort: view.sort,
+    searchQuery: view.searchQuery,
     setFilter,
     setSort,
-    boardQueryString,
-    filterActive: view.filter.length > 0,
+    setSearchQuery,
+    filterActive,
+    searchActive,
+    viewNarrowedActive,
   };
 }

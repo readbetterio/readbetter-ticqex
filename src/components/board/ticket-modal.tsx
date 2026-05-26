@@ -14,22 +14,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Tag } from "@/components/tags/types";
 import { apiFetch, apiFetchText } from "@/lib/api-client";
 import { useTicketRealtime } from "@/hooks/use-board-realtime";
+import { useRecentTags } from "@/hooks/use-recent-tags";
 import {
   EmailConversationPanel,
   type EmailThreadOrder,
 } from "./email-conversation-panel";
-import { TaskTicketPanel } from "./task-ticket-panel";
+import { TicketCustomerSection } from "./ticket-customer-section";
+import { TicketDetailsSection } from "./ticket-details-section";
 import type {
   EmailComposePayload,
   TicketDetail,
@@ -40,8 +35,6 @@ import {
 } from "./types";
 
 type StaffUser = { id: string; username: string };
-
-const UNASSIGNED = "__unassigned__";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -64,7 +57,9 @@ export function TicketModal({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
-  const [tagInput, setTagInput] = useState("");
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const { recentNames, touch: touchRecentTags } = useRecentTags();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,17 +71,19 @@ export function TicketModal({
       setError(null);
     }
     try {
-      const [t, staff, settings] = await Promise.all([
+      const [t, staff, settings, tags] = await Promise.all([
         apiFetch<TicketDetail>(`/api/v1/tickets/${ticketId}`),
         apiFetch<StaffUser[]>("/api/v1/users"),
         apiFetch<{ email_thread_order?: EmailThreadOrder }>("/api/v1/settings"),
+        apiFetch<Tag[]>("/api/v1/tags"),
       ]);
       setThreadOrder(settings.email_thread_order ?? "oldest_first");
       setTicket(t);
       setTitle(t.title);
       setBody(isTaskDetail(t) ? (t.body ?? "") : "");
       setAssigneeId(t.assignee_id ?? "");
-      setTagInput(t.tags.map((x) => x.name).join(", "));
+      setSelectedTags(t.tags);
+      setAllTags(tags);
       setUsers(staff);
 
       if (isConversationDetail(t) && !options?.silent) {
@@ -102,8 +99,8 @@ export function TicketModal({
               }
             : prev,
         );
+        onBoardChange({ ...t, unread_count: 0 });
       }
-      onBoardChange();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load ticket");
     } finally {
@@ -142,14 +139,13 @@ export function TicketModal({
     setSaving(true);
     setError(null);
     try {
-      const tags = tagInput
-        .split(",")
-        .map((s) => s.trim())
+      const tagNames = selectedTags
+        .map((tag) => tag.name.trim())
         .filter(Boolean);
       const payload: Record<string, unknown> = {
         title,
         assignee_id: assigneeId || null,
-        tags,
+        tags: tagNames,
       };
       if (isTaskDetail(ticket)) {
         payload.body = body;
@@ -162,7 +158,18 @@ export function TicketModal({
       setTicket(refreshed);
       setTitle(refreshed.title);
       setAssigneeId(refreshed.assignee_id ?? "");
-      setTagInput(refreshed.tags.map((t) => t.name).join(", "));
+      setSelectedTags(refreshed.tags);
+      const existingKeys = new Set(
+        allTags.map((t) => t.name.trim().toLowerCase()),
+      );
+      const hasNewTag = tagNames.some(
+        (n) => !existingKeys.has(n.trim().toLowerCase()),
+      );
+      if (hasNewTag) {
+        const tags = await apiFetch<Tag[]>("/api/v1/tags");
+        setAllTags(tags);
+      }
+      touchRecentTags(tagNames);
       if (isTaskDetail(refreshed)) {
         setBody(refreshed.body ?? "");
       }
@@ -224,9 +231,36 @@ export function TicketModal({
         className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         showCloseButton={false}
       >
-        <DialogHeader className="flex-row items-center justify-between border-b border-border px-4 py-3">
-          <DialogTitle>Ticket</DialogTitle>
-          <div className="flex items-center gap-2">
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <DialogTitle
+              className="truncate"
+              title={!loading && title ? title : undefined}
+            >
+              {loading ? "Ticket" : title || "Ticket"}
+            </DialogTitle>
+            {!loading && ticket && (
+              <>
+                {isTaskDetail(ticket) ? (
+                  <Badge variant="outline" className="shrink-0">Ticket</Badge>
+                ) : (
+                  <Badge variant="secondary" className="shrink-0">Email conversation</Badge>
+                )}
+                {ticket.status && (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: ticket.status.color }}
+                    />
+                    <span className="text-sm font-medium text-foreground">
+                      {ticket.status.name}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -259,76 +293,51 @@ export function TicketModal({
         {!loading && ticket && (
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="space-y-3 border-b border-border p-4">
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                {isTaskDetail(ticket) ? (
-                  <Badge variant="outline">Task</Badge>
-                ) : (
-                  <Badge variant="secondary">Email conversation</Badge>
-                )}
-                {ticket.customer && (
-                  <>
-                    <Separator orientation="vertical" className="h-4" />
-                    <span className="text-muted-foreground">
-                      {isConversationDetail(ticket) && ticket.contact_address
-                        ? ticket.contact_address
-                        : ticket.customer.username}
-                    </span>
-                  </>
-                )}
-                <Separator orientation="vertical" className="h-4" />
-                <span className="text-muted-foreground">
-                  Status: {ticket.status?.name}
-                </span>
-              </div>
               <div className="space-y-2">
-                <Label>Assignee</Label>
-                <Select
-                  value={assigneeId || UNASSIGNED}
-                  onValueChange={(v) =>
-                    setAssigneeId(v === UNASSIGNED ? "" : v)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Unassigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.username}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Tags (comma-separated)</Label>
+                <Label htmlFor="ticket-title">Title</Label>
                 <Input
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
+                  id="ticket-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
-              <Button
-                type="button"
-                size="sm"
-                disabled={saving}
-                onClick={() => void saveMeta()}
-              >
-                Save details
-              </Button>
+              {ticket.customer && ticket.customer_id && (
+                <TicketCustomerSection
+                  customerId={ticket.customer_id}
+                  displayName={
+                    isConversationDetail(ticket) && ticket.contact_address
+                      ? ticket.contact_address
+                      : ticket.customer.username
+                  }
+                  contactAddress={
+                    isConversationDetail(ticket) ? ticket.contact_address : null
+                  }
+                />
+              )}
+              <TicketDetailsSection
+                assigneeId={assigneeId}
+                onAssigneeChange={setAssigneeId}
+                users={users}
+                selectedTags={selectedTags}
+                onTagsChange={setSelectedTags}
+                allTags={allTags}
+                recentNames={recentNames}
+                saving={saving}
+                onSave={() => void saveMeta()}
+                body={isTaskDetail(ticket) ? body : undefined}
+                onBodyChange={isTaskDetail(ticket) ? setBody : undefined}
+                summary={[
+                  users.find((u) => u.id === assigneeId)?.username ??
+                    ticket.assignee?.username ??
+                    "Unassigned",
+                  selectedTags.length > 0
+                    ? selectedTags.map((tag) => tag.name).join(", ")
+                    : "No tags",
+                ].join(" · ")}
+              />
             </div>
 
-            {isTaskDetail(ticket) ? (
-              <TaskTicketPanel
-                ticket={ticket}
-                body={body}
-                onBodyChange={setBody}
-              />
-            ) : (
+            {!isTaskDetail(ticket) && (
               <EmailConversationPanel
                 ticket={ticket}
                 ticketId={ticketId}

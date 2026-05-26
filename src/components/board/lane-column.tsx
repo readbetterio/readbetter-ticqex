@@ -11,16 +11,17 @@ import type { BoardLane } from "./types";
 
 export function LaneColumn({
   lane,
-  filterActive = false,
   sortable = false,
   onTicketClick,
 }: {
   lane: BoardLane;
-  filterActive?: boolean;
   sortable?: boolean;
   onTicketClick: (id: string) => void;
 }) {
   const { setNodeRef } = useDroppable({ id: lane.status.id });
+  const totalCount = lane.total_count;
+  const showFraction =
+    totalCount !== undefined && totalCount > lane.tickets.length;
 
   return (
     <section className="flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-muted/50 ring-1 ring-inset ring-foreground/5">
@@ -31,8 +32,8 @@ export function LaneColumn({
         />
         <h2 className="text-sm font-medium text-foreground">{lane.status.name}</h2>
         <Badge variant="secondary" className="ml-auto">
-          {filterActive && lane.total_count !== undefined
-            ? `${lane.tickets.length} / ${lane.total_count}`
+          {showFraction
+            ? `${lane.tickets.length} / ${totalCount}`
             : lane.tickets.length}
         </Badge>
       </header>

@@ -9,7 +9,7 @@
   Inbound email ──► │   Resend    │──webhook──► Next.js webhook route
                     └─────────────┘                    │
                                                        ▼
-                                               Trigger.dev job
+                                               after() background work
                                                (parse + match)
                                                        │
                                                        ▼
@@ -18,7 +18,7 @@
   Admin reply ──► POST /api/v1/tickets/:id/messages
                            │
                            ▼
-                   Trigger.dev job ──► Resend ──► Customer inbox
+                   after() ──► Resend ──► Customer inbox
 
   Admin UI (read) ──► Supabase Realtime ──► Board update
   Admin UI (write) ──► REST API (same as external clients)
@@ -69,8 +69,8 @@ Future: add `/server/adapters/email/postmark.ts` etc. without changing service l
 ```
 1. Customer sends email to support@yourdomain.com
 2. Resend receives → POST /api/webhooks/resend/inbound
-3. Webhook route validates signature → enqueues Trigger.dev job
-4. Job runs:
+3. Webhook route validates signature → schedules background work via `after()`
+4. Background work runs:
    a. Parse email (from, subject, body, headers, attachments)
    b. Find/create customer by `from` address → customers.username
    c. Match ticket (see Threading below)
@@ -107,7 +107,7 @@ Triggered when a **public** message is created with `channel: admin` or `channel
 ```
 1. POST /api/v1/tickets/:id/messages { visibility: "public", ... }
 2. Service layer creates message in DB
-3. Enqueues Trigger.dev outbound job:
+3. Schedules outbound send via `after()`:
    a. Load ticket + customer + thread history
    b. Build email with proper headers:
       - From: "Support <support@yourdomain.com>"
@@ -141,47 +141,41 @@ SUPPORT_EMAIL=support@yourdomain.com
 SUPPORT_FROM_NAME=Support
 ```
 
-## Trigger.dev
+## Background email processing
 
-### Jobs (v1)
+Async email work uses Next.js [`after()`](https://nextjs.org/docs/app/api-reference/functions/after) on Vercel — same process, no external job runner.
 
-| Job | Trigger | Purpose |
-|-----|---------|---------|
-| `process-inbound-email` | Webhook enqueue | Parse + match + create ticket/message |
-| `send-outbound-email` | Message created (public) | Send reply via Resend |
-| `stale-ticket-digest` | Cron (daily) | Optional; email staff about stale tickets |
-| `cleanup-attachments` | Cron (weekly) | Remove orphaned storage files |
+| Work | Trigger | Purpose |
+|------|---------|---------|
+| Inbound parse + ticket create | Resend webhook → `enqueueInboundEmail()` | Fetch body, match thread, persist message |
+| Outbound reply | Public message created | Send via Resend adapter |
+| Stale ticket digest | Cron (daily) | Optional; not implemented |
+| Cleanup attachments | Cron (weekly) | Optional; not implemented |
 
-### Why Trigger.dev
+### Why `after()`
 
-- Inbound email parsing can be slow (attachments, storage upload)
-- Outbound email needs retry on Resend failure
-- Cron jobs for maintenance
-- Next.js Route Handlers have timeout limits on Vercel; Trigger.dev handles long-running work
+- Inbound parsing can be slow (attachments, storage upload) — respond to webhook quickly
+- Outbound send shouldn't block the API response
+- Vercel Fluid Compute extends function lifetime for background work
+- DB dedupe (`resend_inbound_id`, `email_message_id`) prevents duplicate messages on webhook retries
 
-### Job structure
+### Implementation
 
 ```typescript
-// /trigger/process-inbound-email.ts
-import { task } from "@trigger.dev/sdk/v3"
+// server/adapters/email/background.ts
+import { after } from "next/server"
 import { resendAdapter } from "@server/adapters/email/resend"
 import { processInboundEmail } from "@server/services/email-inbound"
 
-export const processInboundEmailTask = task({
-  id: "process-inbound-email",
-  retry: { maxAttempts: 3 },
-  run: async (payload: { raw: InboundWebhookPayload }) => {
-    const parsed = await resendAdapter.resolveInbound(payload.raw)
-    return processInboundEmail(parsed)
-  },
-})
+export function enqueueInboundEmail(raw: InboundWebhookPayload) {
+  after(async () => {
+    const parsed = await resendAdapter.resolveInbound(raw)
+    await processInboundEmail(parsed)
+  })
+}
 ```
 
-### Environment variables
-
-```env
-TRIGGER_SECRET_KEY=tr_dev_...
-```
+Phase 5 scheduled jobs can use Vercel Cron or Supabase pg_cron when needed.
 
 ## Supabase Realtime
 
@@ -257,7 +251,7 @@ type WebhookEvent =
   | 'customer.created'
 ```
 
-Delivery via Trigger.dev with exponential backoff. Payload signed with `X-Ticqex-Signature` HMAC header.
+Delivery via background job with exponential backoff (TBD — Vercel Cron or pg_cron). Payload signed with `X-Ticqex-Signature` HMAC header.
 
 v1: not implemented. API + email cover initial integration needs.
 
@@ -301,9 +295,6 @@ RESEND_INBOUND_WEBHOOK_SECRET=whsec_...
 SUPPORT_EMAIL=support@yourdomain.com
 SUPPORT_FROM_NAME=Support
 
-# Trigger.dev
-TRIGGER_SECRET_KEY=tr_dev_...
-
 # App
 NEXT_PUBLIC_APP_URL=https://your-instance.com
 ```
@@ -314,7 +305,7 @@ NEXT_PUBLIC_APP_URL=https://your-instance.com
 |-------------|-------------------|---------|---------|
 | Email | `/server/adapters/email/types.ts` | `resend.ts` | Implement interface, change env var |
 | Database | Direct Supabase client in services | Supabase | Phase 6+ if needed |
-| Job queue | Trigger.dev tasks | Trigger.dev | Significant effort; defer |
+| Job queue | Next.js `after()` on Vercel | `background.ts` | Would need external runner if moving off Vercel |
 | Realtime | Supabase Realtime | Supabase | Would need WebSocket server |
 
 Email is the only adapter designed for swapping in v1. Everything else is Supabase-native by design.

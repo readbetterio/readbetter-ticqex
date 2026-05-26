@@ -131,7 +131,7 @@ POST /api/v1/tickets
 }
 ```
 
-**Email conversations** are created by inbound email (Resend webhook → Trigger), not via `POST /api/v1/tickets`. Only `kind: "task"` is accepted on create.
+**Email conversations** are created by inbound email (Resend webhook → background processing), not via `POST /api/v1/tickets`. Only `kind: "task"` is accepted on create.
 
 `kind` is required (no default). If `status_id` omitted, defaults to first status.
 
@@ -164,7 +164,7 @@ POST /api/v1/tickets/:ticketId/messages
 }
 ```
 
-When `visibility: "public"` on a conversation with `channel: "email"`, agent replies trigger outbound email via Trigger.dev. Task tickets reject `POST …/messages`. See [INTEGRATIONS.md](./INTEGRATIONS.md#outbound-email).
+When `visibility: "public"` on a conversation with `channel: "email"`, agent replies schedule outbound email via Next.js `after()`. Task tickets reject `POST …/messages`. See [INTEGRATIONS.md](./INTEGRATIONS.md#outbound-email).
 
 ### Customers
 

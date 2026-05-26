@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   return withAuth(request, async (auth) => {
     const filter = parseTicketFilterParam(request.nextUrl.searchParams.get("filter"));
     const sort = parseBoardSortParam(request.nextUrl.searchParams.get("sort"));
-    const board = await getBoard(auth.userId, filter, sort);
+    const q = request.nextUrl.searchParams.get("q") ?? "";
+    const board = await getBoard(auth.userId, filter, sort, q);
     return jsonData(board);
   });
 }

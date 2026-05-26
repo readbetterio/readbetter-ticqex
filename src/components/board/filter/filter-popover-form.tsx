@@ -166,7 +166,11 @@ export function FilterPopoverForm({
       {field === "tag" && operator && (
         <MultiCheckboxList
           label="Tags"
-          options={tags.map((tag) => ({ value: tag.name, label: tag.name }))}
+          options={tags.map((tag) => ({
+            value: tag.name,
+            label: tag.name,
+            color: tag.color,
+          }))}
           selected={multiValues}
           onToggle={onToggleMultiValue}
         />

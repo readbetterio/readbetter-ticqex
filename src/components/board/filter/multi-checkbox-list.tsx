@@ -1,3 +1,4 @@
+import { TagBadge } from "@/components/tags/tag-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
@@ -8,7 +9,7 @@ export function MultiCheckboxList({
   onToggle,
 }: {
   label: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; color?: string }[];
   selected: string[];
   onToggle: (value: string) => void;
 }) {
@@ -25,7 +26,11 @@ export function MultiCheckboxList({
               checked={selected.includes(option.value)}
               onCheckedChange={() => onToggle(option.value)}
             />
-            {option.label}
+            {option.color ? (
+              <TagBadge name={option.label} color={option.color} />
+            ) : (
+              option.label
+            )}
           </label>
         ))}
       </div>

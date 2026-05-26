@@ -11,7 +11,8 @@ Interlinked specifications for an API-first, open-core support/ticketing platfor
 | [DATA-MODEL.md](./DATA-MODEL.md) | Entities, relationships, custom fields |
 | [API.md](./API.md) | REST API design, auth, filtering, conventions |
 | [PHASES.md](./PHASES.md) | Phased build plan with dependencies |
-| [INTEGRATIONS.md](./INTEGRATIONS.md) | Email, Trigger.dev, Realtime, adapter contracts |
+| [INTEGRATIONS.md](./INTEGRATIONS.md) | Email, background processing, Realtime, adapter contracts |
+| [FEATURE-COLLECTION.md](./FEATURE-COLLECTION.md) | Backlog of unprioritized feature ideas |
 
 ## How to read these
 
@@ -37,6 +38,6 @@ Start with **VISION** for the "why", then **PHASES** for the "when", and use **D
 | DB | All-in on Supabase |
 | Deploy | Vercel + Supabase Cloud |
 | API surface | Next.js Route Handlers + service layer |
-| Async jobs | Trigger.dev (email, scheduled jobs) |
+| Async jobs | Next.js `after()` on Vercel (email; cron TBD) |
 | Email | Resend (swappable adapter) |
 | Webhooks | Deferred post-v1 |

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { EnvelopeIcon, EnvelopeOpenIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { usePersistedExpanded } from "@/hooks/use-persisted-expanded";
 import { cn } from "@/lib/utils";
 import { EmailCompose } from "./email-compose";
 import { EmailMessageBody } from "./email-message-body";
@@ -20,6 +22,8 @@ import type {
 import { isEmailMessage, messageSenderEmail } from "./email-utils";
 
 export type EmailThreadOrder = "oldest_first" | "newest_first";
+
+const CONVERSATION_EXPANDED_KEY = "ticqex.ticket-conversation.expanded.v1";
 
 function scrollToLatest(el: HTMLElement, order: EmailThreadOrder) {
   if (order === "newest_first") {
@@ -54,6 +58,10 @@ export function EmailConversationPanel({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const messageCountRef = useRef(0);
+  const { expanded, toggleExpanded, hydrated } = usePersistedExpanded(
+    CONVERSATION_EXPANDED_KEY,
+    true,
+  );
 
   const messages = useMemo(() => {
     if (threadOrder === "newest_first") {
@@ -92,12 +100,32 @@ export function EmailConversationPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      <button
+        type="button"
+        className="flex w-full shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
+        aria-expanded={expanded}
+        onClick={toggleExpanded}
       >
-        <div className="space-y-3 p-4">
-          {messages.map((msg) => {
+        {expanded ? (
+          <ChevronDown className="size-3.5 shrink-0" />
+        ) : (
+          <ChevronRight className="size-3.5 shrink-0" />
+        )}
+        Conversation
+        {!expanded && (
+          <span className="ml-auto text-xs font-normal text-muted-foreground">
+            {ticket.messages.length}{" "}
+            {ticket.messages.length === 1 ? "message" : "messages"}
+          </span>
+        )}
+      </button>
+      {hydrated && expanded && (
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        >
+          <div className="space-y-3 p-4">
+            {messages.map((msg) => {
             const isIncoming = msg.author_type === "customer";
             const isOutbound = !isIncoming;
             const isUnread = isIncoming && msg.read === false;
@@ -158,11 +186,12 @@ export function EmailConversationPanel({
               </div>
             );
           })}
+          </div>
         </div>
-      </div>
+      )}
 
       {ticket.channel === "email" && (
-        <div className="relative z-10 shrink-0 border-t border-border bg-background">
+        <div className="relative z-10 min-h-0 shrink-0 border-t border-border bg-background">
           <EmailCompose
             ticketId={ticketId}
             customerEmail={customerEmail}

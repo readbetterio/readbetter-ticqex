@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -19,12 +18,11 @@ import { EmailSignatureForm } from "@/components/settings/email-signature-form";
 import { EmailSnippetsSection } from "@/components/settings/email-snippets-section";
 import { InboundEmailStatusSetting } from "@/components/settings/inbound-email-status-setting";
 import { StatusColumnsSection } from "@/components/settings/status-columns-section";
-import { TagForm } from "@/components/settings/tag-form";
+import { TagsSection } from "@/components/settings/tags-section";
 import { ThemeSetting } from "@/components/settings/theme-setting";
 import { apiFetch } from "@/lib/api-client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
-type Tag = { id: string; name: string; color: string };
 type CustomField = {
   id: string;
   group: string;
@@ -82,7 +80,6 @@ function SettingsLoadingSkeleton() {
 
 export function SettingsPanel() {
   const { user: me, loading: userLoading } = useCurrentUser();
-  const [tags, setTags] = useState<Tag[]>([]);
   const [fields, setFields] = useState<CustomField[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -92,12 +89,10 @@ export function SettingsPanel() {
   const load = useCallback(async () => {
     if (!me || me.role !== "admin") return;
     try {
-      const [t, f, g] = await Promise.all([
-        apiFetch<Tag[]>("/api/v1/tags"),
+      const [f, g] = await Promise.all([
         apiFetch<CustomField[]>("/api/v1/custom-fields"),
         apiFetch<Settings>("/api/v1/settings"),
       ]);
-      setTags(t);
       setFields(f);
       setSettings(g);
       setApiKeys(await apiFetch<ApiKey[]>("/api/v1/api-keys"));
@@ -183,20 +178,13 @@ export function SettingsPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Tags</CardTitle>
+          <CardDescription>
+            Organization-wide labels with colors shown on board cards and ticket
+            views.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <TagForm onCreated={load} />
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <Badge
-                key={tag.id}
-                className="text-white"
-                style={{ backgroundColor: tag.color }}
-              >
-                {tag.name}
-              </Badge>
-            ))}
-          </div>
+        <CardContent>
+          <TagsSection />
         </CardContent>
       </Card>
 

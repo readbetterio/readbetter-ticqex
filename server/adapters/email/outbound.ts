@@ -1,6 +1,5 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { resendAdapter } from "./resend";
-import { outboundTriggerIdempotencyKey } from "./trigger-keys";
 import {
   finalizeAttachmentUploads,
   loadOutboundAttachments,
@@ -80,17 +79,4 @@ export async function sendOutboundEmailForMessage(messageId: string) {
   }
 
   await finalizeAttachmentUploads(ticket.id, messageId, staged);
-}
-
-export async function enqueueOutboundEmail(messageId: string) {
-  if (!process.env.TRIGGER_SECRET_KEY) {
-    throw new Error("TRIGGER_SECRET_KEY is required to send outbound email");
-  }
-
-  const { tasks } = await import("@trigger.dev/sdk/v3");
-  await tasks.trigger(
-    "send-outbound-email",
-    { messageId },
-    { idempotencyKey: outboundTriggerIdempotencyKey(messageId) },
-  );
 }

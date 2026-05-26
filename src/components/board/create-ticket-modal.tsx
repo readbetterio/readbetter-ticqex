@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TagMultiSelect } from "@/components/tags/tag-multi-select";
+import type { Tag } from "@/components/tags/types";
 import { apiFetch } from "@/lib/api-client";
+import { useRecentTags } from "@/hooks/use-recent-tags";
 
 export function CreateTicketModal({
   statuses,
@@ -35,8 +38,19 @@ export function CreateTicketModal({
   const [customer, setCustomer] = useState("");
   const [statusId, setStatusId] = useState(statuses[0]?.id ?? "");
   const [body, setBody] = useState("");
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const { recentNames, touch: touchRecentTags } = useRecentTags();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void apiFetch<Tag[]>("/api/v1/tags")
+      .then(setAllTags)
+      .catch(() => {
+        // Tags are optional for create; picker still allows new tag names.
+      });
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,6 +64,7 @@ export function CreateTicketModal({
     setError(null);
     const trimmedBody = body.trim();
     const trimmedCustomer = customer.trim();
+    const tagNames = selectedTags.map((tag) => tag.name.trim()).filter(Boolean);
 
     try {
       await apiFetch("/api/v1/tickets", {
@@ -62,9 +77,11 @@ export function CreateTicketModal({
             ? { customer: { username: trimmedCustomer } }
             : {}),
           ...(statusId ? { status_id: statusId } : {}),
+          ...(tagNames.length ? { tags: tagNames } : {}),
           origin: "manual",
         }),
       });
+      if (tagNames.length) touchRecentTags(tagNames);
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Create failed");
@@ -77,7 +94,7 @@ export function CreateTicketModal({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New task</DialogTitle>
+          <DialogTitle>New Ticket</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -114,6 +131,16 @@ export function CreateTicketModal({
             </Select>
           </div>
           <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagMultiSelect
+              value={selectedTags}
+              options={allTags}
+              onChange={setSelectedTags}
+              recentNames={recentNames}
+              disabled={loading}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="ticket-body">Description</Label>
             <Textarea
               id="ticket-body"
@@ -127,7 +154,7 @@ export function CreateTicketModal({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <DialogFooter className="border-0 bg-transparent p-0">
+          <DialogFooter className="mb-0 border-0 bg-transparent p-0 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>

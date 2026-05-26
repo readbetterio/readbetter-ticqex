@@ -1,9 +1,7 @@
 /**
- * Merges Cursor Cloud harness secrets into .env.local and writes Trigger CLI config.
+ * Merges Cursor Cloud harness secrets into .env.local.
  * Safe to run repeatedly — only overwrites keys that are present in process.env.
  */
-import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import {
   readOrCreateEnvFile,
@@ -18,46 +16,8 @@ const HARNESS_ENV_KEYS = [
   "RESEND_INBOUND_WEBHOOK_SECRET",
   "SUPPORT_EMAIL",
   "SUPPORT_FROM_NAME",
-  "TRIGGER_PROJECT_REF",
-  "TRIGGER_SECRET_KEY",
   "NEXT_PUBLIC_APP_URL",
 ] as const;
-
-function triggerConfigPath(): string {
-  if (process.env.TRIGGER_CONFIG_PATH) {
-    return process.env.TRIGGER_CONFIG_PATH;
-  }
-  if (process.platform === "darwin") {
-    return path.join(os.homedir(), "Library/Preferences/trigger/config.json");
-  }
-  return path.join(os.homedir(), ".config", "trigger", "config.json");
-}
-
-function syncTriggerCliConfig(): boolean {
-  const token = process.env.TRIGGER_ACCESS_TOKEN;
-  if (!token) return false;
-
-  const configPath = triggerConfigPath();
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify(
-      {
-        profiles: {
-          default: {
-            accessToken: token,
-            apiUrl: process.env.TRIGGER_API_URL ?? "https://api.trigger.dev",
-          },
-        },
-        currentProfile: "default",
-      },
-      null,
-      2,
-    ),
-  );
-  console.log(`Wrote Trigger CLI config (${configPath})`);
-  return true;
-}
 
 function main(): void {
   const envFile = process.env.ENV_FILE ?? ".env.local";
@@ -84,8 +44,6 @@ function main(): void {
       `No harness keys in process.env — set secrets in Cursor Cloud or export manually.`,
     );
   }
-
-  syncTriggerCliConfig();
 }
 
 main();

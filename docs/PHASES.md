@@ -147,11 +147,11 @@ See [INTEGRATIONS.md](./INTEGRATIONS.md) for full spec.
 
 - [x] Resend adapter (`/server/adapters/email/resend.ts`)
 - [x] Resend inbound webhook endpoint
-- [x] Trigger.dev: inbound email processing job
+- [x] Background inbound email processing (`after()`)
   - [x] Parse email → find/create customer → match/create ticket → create message
   - [x] Threading: Message-ID / In-Reply-To first, subject + customer fallback
   - [x] Parse email attachments → Supabase Storage
-- [x] Trigger.dev: outbound email job
+- [x] Background outbound email send (`after()`)
   - [x] On public message via admin/API → send via Resend
   - [x] Proper threading headers (`In-Reply-To`, `References`)
 - [x] Email metadata stored on messages (`email_message_id`, etc.)
@@ -199,7 +199,7 @@ Depends on: **Phase 4**
 - [ ] Loading states, empty states, error toasts (toast library TBD)
 - [ ] Keyboard shortcuts (optional: `n` new ticket, `/` search)
 - [ ] Ticket search (title + customer username, simple text match)
-- [ ] Trigger.dev: scheduled jobs setup
+- [ ] Scheduled jobs setup (Vercel Cron or pg_cron)
   - [ ] Stale ticket digest (optional, configurable)
   - [ ] Cleanup orphaned attachments
 
@@ -207,7 +207,7 @@ Depends on: **Phase 4**
 
 - Agent can find tickets quickly without scrolling entire board
 - No broken states on network failure beyond Phase 4 Alert
-- Optional scheduled digests run in Trigger.dev when configured
+- Optional scheduled digests run when configured
 
 ---
 
@@ -249,7 +249,7 @@ Not scheduled. Documented so v1 architecture doesn't block them.
 
 - `webhook_endpoints` + `webhook_deliveries` tables
 - Events: `ticket.created`, `ticket.updated`, `message.received`, etc.
-- Trigger.dev delivery with retries + signing
+- Background delivery with retries + signing
 
 ### Phase 9 — Multi-tenant / Ticqex Cloud
 

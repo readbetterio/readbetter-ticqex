@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "@server/lib/errors";
+import { chunkArray } from "@server/lib/chunked-array";
 
 type FieldRow = {
   id: string;
@@ -76,22 +77,24 @@ export async function loadCustomFieldsMap(
   const result = new Map<string, Record<string, unknown>>();
   if (entityIds.length === 0) return result;
 
-  const { data: values, error } = await db
-    .from("custom_field_values")
-    .select(
-      "field_id, entity_id, value_text, value_number, value_date, value_boolean, value_json, custom_field_definitions!inner(id, key, type, group)",
-    )
-    .eq("entity_type", entityType)
-    .in("entity_id", entityIds);
+  for (const chunk of chunkArray(entityIds)) {
+    const { data: values, error } = await db
+      .from("custom_field_values")
+      .select(
+        "field_id, entity_id, value_text, value_number, value_date, value_boolean, value_json, custom_field_definitions!inner(id, key, type, group)",
+      )
+      .eq("entity_type", entityType)
+      .in("entity_id", chunk);
 
-  if (error) throw ApiError.internal(error.message);
+    if (error) throw ApiError.internal(error.message);
 
-  for (const row of values ?? []) {
-    const def = row.custom_field_definitions as unknown as FieldRow;
-    const entityId = row.entity_id as string;
-    const map = result.get(entityId) ?? {};
-    map[def.key] = valueFromRow(row as unknown as ValueRow, def);
-    result.set(entityId, map);
+    for (const row of values ?? []) {
+      const def = row.custom_field_definitions as unknown as FieldRow;
+      const entityId = row.entity_id as string;
+      const map = result.get(entityId) ?? {};
+      map[def.key] = valueFromRow(row as unknown as ValueRow, def);
+      result.set(entityId, map);
+    }
   }
 
   return result;

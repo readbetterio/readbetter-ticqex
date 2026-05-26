@@ -25,21 +25,21 @@ export function visibleIdsForLane(lanes: BoardLane[], laneId: string): string[] 
 }
 
 export function buildFilterContext({
-  filterActive,
+  subsetActive,
   startLanes,
   fromLaneId,
   toLaneId,
   ticketId,
   crossLane,
 }: {
-  filterActive: boolean;
+  subsetActive: boolean;
   startLanes: BoardLane[];
   fromLaneId: string;
   toLaneId: string;
   ticketId: string;
   crossLane: boolean;
 }): MoveTicketFilterContext | undefined {
-  if (!filterActive) return undefined;
+  if (!subsetActive) return undefined;
 
   if (crossLane) {
     const targetVisible = visibleIdsForLane(startLanes, toLaneId);
