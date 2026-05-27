@@ -184,26 +184,6 @@ export function TicketModal({
   const detailSummary = summary;
   const isConversation = displaySeed?.kind === "conversation";
 
-  async function changeStatus(statusId: string) {
-    const source = summary;
-    if (!source || source.status_id === statusId) return;
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await onStatusChange(ticketId, source.status_id, statusId);
-      await queryClient.invalidateQueries({
-        queryKey: ticketSummaryQueryKey(ticketId),
-      });
-    } catch (e) {
-      setCurrentError(
-        e instanceof Error ? e.message : "Failed to change status",
-      );
-      onBoardChange();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function saveMeta() {
     const source = summary;
     if (!source) return;
@@ -315,6 +295,72 @@ export function TicketModal({
     return [];
   }, [statuses, summary, initialSeed]);
 
+  const changeStatus = useCallback(
+    (statusId: string) => {
+      const source = summary;
+      if (!source || source.status_id === statusId) return;
+
+      const newStatus = statusOptions.find((s) => s.id === statusId);
+      const fromStatusId = source.status_id;
+      const previousStatus = source.status;
+
+      setCurrentError(null);
+
+      queryClient.setQueryData<TicketSummary>(
+        ticketSummaryQueryKey(ticketId),
+        (current) =>
+          current
+            ? {
+                ...current,
+                status_id: statusId,
+                status: newStatus
+                  ? {
+                      id: newStatus.id,
+                      name: newStatus.name,
+                      color: newStatus.color,
+                    }
+                  : current.status,
+                updated_at: new Date().toISOString(),
+              }
+            : current,
+      );
+
+      void (async () => {
+        try {
+          await onStatusChange(ticketId, fromStatusId, statusId);
+          void queryClient.invalidateQueries({
+            queryKey: ticketSummaryQueryKey(ticketId),
+          });
+        } catch (e) {
+          queryClient.setQueryData<TicketSummary>(
+            ticketSummaryQueryKey(ticketId),
+            (current) =>
+              current
+                ? {
+                    ...current,
+                    status_id: fromStatusId,
+                    status: previousStatus,
+                  }
+                : current,
+          );
+          setCurrentError(
+            e instanceof Error ? e.message : "Failed to change status",
+          );
+          onBoardChange();
+        }
+      })();
+    },
+    [
+      summary,
+      statusOptions,
+      ticketId,
+      queryClient,
+      onStatusChange,
+      onBoardChange,
+      setCurrentError,
+    ],
+  );
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -348,8 +394,8 @@ export function TicketModal({
                   <TicketStatusCombobox
                     statuses={statusOptions}
                     value={displaySeed.status_id}
-                    onValueChange={(id) => void changeStatus(id)}
-                    disabled={saving || !summary}
+                    onValueChange={changeStatus}
+                    disabled={!summary}
                   />
                 )}
               </>
