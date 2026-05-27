@@ -11,7 +11,6 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:env": "tsx scripts/sync-supabase-env.ts",
-    "env:sync": "pnpm db:env && tsx scripts/sync-cloud-env.ts",
     "env:verify": "tsx --env-file=.env.local scripts/verify-env.ts",
     "db:seed-admin": "tsx --env-file=.env.local scripts/seed.ts",
     "supabase": "supabase",

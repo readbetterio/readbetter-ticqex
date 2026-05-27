@@ -26,9 +26,9 @@ Further integration detail: [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md).
 | Supabase local | `pnpm db:start` | 54321 (API), 54322 (DB), 54323 (Studio) | Requires Docker |
 | Cloudflare tunnel | `cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN"` | — | Proxies public hostname → `localhost:3000` |
 
-### Secrets: Cursor Cloud harness
+### Secrets: Cursor Cloud
 
-The cloud agent harness injects secrets into the **process environment** (not committed to git). Inspect names with:
+The cloud agent injects secrets into **process.env** (not committed to git). Next.js and scripts read them directly — no file sync step. Inspect names with:
 
 ```bash
 echo "$CLOUD_AGENT_ALL_SECRET_NAMES"
@@ -37,38 +37,28 @@ echo "$CLOUD_AGENT_INJECTED_SECRET_NAMES"
 
 Typically provided:
 
-| Variable | In harness | Notes |
-|----------|------------|-------|
+| Variable | In Cursor Cloud | Notes |
+|----------|-----------------|-------|
 | `RESEND_API_KEY` | Yes | Outbound + Resend API |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Yes | Svix signing secret (`whsec_...`) from Resend webhook details |
 | `CLOUDFLARE_TUNNEL_TOKEN` | Yes | Run token for named tunnel `ticqex-dev` |
 | `SUPPORT_EMAIL` | Yes | Verified Resend sender |
 | `SUPPORT_FROM_NAME` | Yes | |
 | `NEXT_PUBLIC_APP_URL` | Yes | Set to `https://readbetter.rbouschery.de` when tunnel is up |
-| Supabase JWT keys | **No** | Written by `pnpm db:env` after `pnpm db:start` |
+| Supabase JWT keys | **No** | Written by `pnpm db:env` into `.env.local` after `pnpm db:start` |
 
-Next.js and scripts expect **`.env.local`** (gitignored). Sync everything in one step after Supabase is up:
+Local Supabase keys still go in **`.env.local`** via `pnpm db:env`. Email and tunnel secrets come from Cursor Cloud (or set manually in `.env.local` for non-cloud dev).
+
+After Supabase is up:
 
 ```bash
 cd /workspace
 pnpm db:start          # if not already running
-pnpm env:sync          # db:env + harness merge
+pnpm db:env            # Supabase JWT keys → .env.local
 pnpm env:verify        # optional sanity check
 ```
 
-`pnpm env:sync` runs:
-1. `pnpm db:env` — Supabase JWT keys into `.env.local`
-2. `scripts/sync-cloud-env.ts` — merges harness secrets
-
-Harness keys merged when present in `process.env`: `RESEND_API_KEY`, `RESEND_INBOUND_WEBHOOK_SECRET`, `SUPPORT_EMAIL`, `SUPPORT_FROM_NAME`, `NEXT_PUBLIC_APP_URL`.
-
-Manual merge (if not using `pnpm env:sync`):
-
-```bash
-tsx scripts/sync-cloud-env.ts
-```
-
-If `RESEND_INBOUND_WEBHOOK_SECRET` is wrong or missing, copy the **signing secret** from [Resend → Webhooks](https://resend.com/webhooks) (webhook details page) or fetch it via `resend.webhooks.get(id)` using `RESEND_API_KEY`. If you recreate the webhook, update the harness secret to match.
+If `RESEND_INBOUND_WEBHOOK_SECRET` is wrong or missing, copy the **signing secret** from [Resend → Webhooks](https://resend.com/webhooks) (webhook details page) or fetch it via `resend.webhooks.get(id)` using `RESEND_API_KEY`. If you recreate the webhook, update the Cursor Cloud secret to match.
 
 ### Full startup sequence
 
@@ -87,8 +77,9 @@ pnpm db:start
 pnpm db:env
 pnpm db:seed-admin
 
-# 3. Environment
-pnpm env:sync
+# 3. Verify environment (optional)
+pnpm db:env
+pnpm env:verify
 pnpm db:seed-admin
 
 # 4. App
@@ -122,7 +113,7 @@ Public URL returning **1033** or **530** → named tunnel not connected. **502**
 
 ### Cloudflare tunnel
 
-Preferred on cloud VMs: set `CLOUDFLARE_TUNNEL_TOKEN` in the harness (Cloudflare Zero Trust → **Networks** → **Tunnels** → **ticqex-dev** → copy the **run token**).
+Preferred on cloud VMs: set `CLOUDFLARE_TUNNEL_TOKEN` in Cursor Cloud secrets (Cloudflare Zero Trust → **Networks** → **Tunnels** → **ticqex-dev** → copy the **run token**).
 
 Alternative with credentials on disk (`~/.cloudflared/cert.pem` + tunnel JSON):
 
@@ -148,7 +139,7 @@ Do not commit `.env.local` or `~/.cloudflared/*` — VM-only secrets.
 |---------|--------|
 | Inbound webhook URL | `https://readbetter.rbouschery.de/api/webhooks/resend/inbound` |
 | Event | `email.received` only |
-| Signing secret | → `RESEND_INBOUND_WEBHOOK_SECRET` in harness / `.env.local` |
+| Signing secret | → `RESEND_INBOUND_WEBHOOK_SECRET` in Cursor Cloud or `.env.local` |
 
 **Webhook signature verification** uses **Svix**, not a plain HMAC of the body. Resend sends `svix-id`, `svix-timestamp`, and `svix-signature` headers. The app verifies via `resend.webhooks.verify()` in `server/adapters/email/resend.ts`. A wrong secret or incorrect verification algorithm returns `401 {"error":{"code":"unauthorized","message":"Invalid webhook signature"}}`.
 
@@ -183,7 +174,7 @@ Errors are logged to the Next.js server console. Resend retries inbound webhooks
 | Role | Example | Config |
 |------|---------|--------|
 | Inbound (customers email this address) | `hello@support.readbetter.io` | Resend receiving domain + MX |
-| Outbound From | `SUPPORT_EMAIL` in harness (e.g. verified sender on `readbetter.io`) | Resend domain verification |
+| Outbound From | `SUPPORT_EMAIL` in Cursor Cloud (e.g. verified sender on `readbetter.io`) | Resend domain verification |
 
 These are separate Resend settings. Inbound needs receiving enabled; outbound needs a verified sender. Both must match what customers and the app expect.
 
@@ -200,7 +191,7 @@ These are separate Resend settings. Inbound needs receiving enabled; outbound ne
 
 ### Standard commands
 
-`pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm env:sync`, `pnpm env:verify`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:env`, `pnpm db:seed-admin`, `pnpm test:message-reads`.
+`pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm env:verify`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:env`, `pnpm db:seed-admin`, `pnpm test:message-reads`.
 
 ### Agent workflow: finish work locally
 
@@ -216,9 +207,9 @@ When implementing features in this cloud VM, **be proactive** — do not stop at
 
    If `db:reset` fails on container restart, run `pnpm db:stop && pnpm db:start`. Confirm the new schema exists (e.g. `docker exec supabase_db_ticqex psql -U postgres -c '\d public.<table>'`).
 
-2. **Sync environment** — After reset or first boot:
+2. **Sync Supabase env** — After reset or first boot:
    ```bash
-   pnpm env:sync
+   pnpm db:env
    pnpm db:seed-admin
    ```
 

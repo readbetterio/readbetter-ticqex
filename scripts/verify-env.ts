@@ -1,6 +1,7 @@
 /**
  * Quick sanity check that the dev environment is wired correctly.
- * Does not start services — run after `pnpm env:sync` and before `pnpm dev`.
+ * Does not start services — run after `pnpm db:env` and before `pnpm dev`.
+ * Reads `.env.local` and inherits Cursor Cloud / shell secrets from process.env.
  */
 const checks: { name: string; ok: boolean; hint?: string }[] = [];
 
@@ -11,9 +12,9 @@ function requireEnv(key: string, hint?: string) {
 
 requireEnv("NEXT_PUBLIC_SUPABASE_URL", "pnpm db:env");
 requireEnv("SUPABASE_SERVICE_ROLE_KEY", "pnpm db:env");
-requireEnv("RESEND_API_KEY", "harness / .env.local");
-requireEnv("RESEND_INBOUND_WEBHOOK_SECRET", "harness / Resend webhook signing secret");
-requireEnv("SUPPORT_EMAIL", "harness");
+requireEnv("RESEND_API_KEY", "Cursor Cloud secrets or .env.local");
+requireEnv("RESEND_INBOUND_WEBHOOK_SECRET", "Cursor Cloud secrets or Resend webhook signing secret");
+requireEnv("SUPPORT_EMAIL", "Cursor Cloud secrets or .env.local");
 requireEnv("NEXT_PUBLIC_APP_URL", "https://readbetter.rbouschery.de when tunnel is up");
 
 const optional = ["CLOUDFLARE_TUNNEL_TOKEN"] as const;
@@ -32,7 +33,9 @@ for (const { name, ok, hint } of checks) {
 }
 
 if (failed) {
-  console.error(`\n${failed} required variable(s) missing. Run: pnpm env:sync`);
+  console.error(
+    `\n${failed} required variable(s) missing. Run pnpm db:env for Supabase keys; set email/tunnel vars in Cursor Cloud or .env.local.`,
+  );
   process.exit(1);
 }
 

@@ -52,7 +52,7 @@ Open [http://localhost:3000](http://localhost:3000), sign in with `SEED_ADMIN_*`
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `pnpm db:env` | App auth (client) |
 | `SUPABASE_SERVICE_ROLE_KEY` | `pnpm db:env` | Admin seed, server jobs |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `.env.example` defaults | `pnpm db:seed-admin` |
-| `RESEND_*`, `SUPPORT_*` | Manual / harness | Email in/out |
+| `RESEND_*`, `SUPPORT_*` | Cursor Cloud secrets or `.env.local` | Email in/out |
 
 Async email processing uses Next.js `after()` — no external job runner required.
 
@@ -68,7 +68,6 @@ Async email processing uses Next.js `after()` — no external job runner require
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Next.js dev server (UI, API, background email) |
-| `pnpm env:sync` | Supabase + harness secrets → `.env.local` |
 | `pnpm env:verify` | Check required env vars are set |
 | `pnpm db:start` / `db:stop` / `db:reset` | Local Supabase |
 | `pnpm db:env` | Sync Supabase keys → `.env.local` |

@@ -9,7 +9,7 @@ import {
   readOrCreateEnvFile,
   setEnvLine,
   writeEnvFile as saveEnvFile,
-} from "./lib/env-file.ts";
+} from "./lib/env-file";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const SUPABASE_BIN = path.join(ROOT, "node_modules", ".bin", "supabase");
