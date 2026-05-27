@@ -86,7 +86,7 @@ async function authViaJwt(token: string): Promise<AuthContext | null> {
   };
 }
 
-async function authViaCookies(): Promise<AuthContext | null> {
+export async function authViaCookies(): Promise<AuthContext | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) return null;

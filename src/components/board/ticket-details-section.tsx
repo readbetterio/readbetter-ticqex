@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { TagMultiSelect } from "@/components/tags/tag-multi-select";
 import type { Tag } from "@/components/tags/types";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { usePersistedExpanded } from "@/hooks/use-persisted-expanded";
 
@@ -22,9 +23,11 @@ export function TicketDetailsSection({
   assigneeId,
   onAssigneeChange,
   users,
+  usersLoading = false,
   selectedTags,
   onTagsChange,
   allTags,
+  tagsLoading = false,
   recentNames,
   saving,
   onSave,
@@ -35,9 +38,11 @@ export function TicketDetailsSection({
   assigneeId: string;
   onAssigneeChange: (value: string) => void;
   users: { id: string; username: string }[];
+  usersLoading?: boolean;
   selectedTags: Tag[];
   onTagsChange: (tags: Tag[]) => void;
   allTags: Tag[];
+  tagsLoading?: boolean;
   recentNames: string[];
   saving: boolean;
   onSave: () => void;
@@ -75,34 +80,42 @@ export function TicketDetailsSection({
         <div className="space-y-3 p-4">
           <div className="space-y-2">
             <Label>Assignee</Label>
-            <Select
-              value={assigneeId || UNASSIGNED}
-              onValueChange={(v) =>
-                onAssigneeChange(v === UNASSIGNED ? "" : v)
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {users.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {usersLoading ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <Select
+                value={assigneeId || UNASSIGNED}
+                onValueChange={(v) =>
+                  onAssigneeChange(v === UNASSIGNED ? "" : v)
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Tags</Label>
-            <TagMultiSelect
-              value={selectedTags}
-              options={allTags}
-              onChange={onTagsChange}
-              recentNames={recentNames}
-              disabled={saving}
-            />
+            {tagsLoading ? (
+              <Skeleton className="h-9 w-full" />
+            ) : (
+              <TagMultiSelect
+                value={selectedTags}
+                options={allTags}
+                onChange={onTagsChange}
+                recentNames={recentNames}
+                disabled={saving}
+              />
+            )}
           </div>
           {onBodyChange && (
             <div className="space-y-2">

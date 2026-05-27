@@ -63,11 +63,9 @@ export function buildOptimisticBoardTicket(
 
 export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
   const body = detail.body ?? "";
-  return {
+  const base = {
     id: detail.id,
     title: detail.title,
-    kind: detail.kind,
-    channel: detail.channel,
     origin: detail.origin,
     customer_id: detail.customer_id,
     assignee_id: detail.assignee_id,
@@ -85,11 +83,19 @@ export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
         }
       : null,
     custom_fields: detail.custom_fields,
-    tags: detail.tags,
+    tags: detail.tags.map((tag) => ({
+      id: tag.id ?? tag.name,
+      name: tag.name,
+      color: tag.color,
+    })),
     created_at: detail.created_at,
     updated_at: detail.updated_at,
     unread_count: "unread_count" in detail ? (detail.unread_count ?? 0) : 0,
   };
+  if (detail.kind === "task") {
+    return { ...base, kind: "task", channel: null };
+  }
+  return { ...base, kind: "conversation", channel: detail.channel };
 }
 
 function ticketMatchesSearch(

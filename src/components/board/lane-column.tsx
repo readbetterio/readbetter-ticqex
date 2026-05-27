@@ -9,7 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TicketCard } from "./ticket-card";
-import type { BoardLane } from "./types";
+import type { BoardLane, BoardTicket } from "./types";
 
 function DropPlaceholder() {
   return (
@@ -31,7 +31,7 @@ export function LaneColumn({
 }: {
   lane: BoardLane;
   sortable?: boolean;
-  onTicketClick: (id: string) => void;
+  onTicketClick: (ticket: BoardTicket) => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -40,8 +40,6 @@ export function LaneColumn({
   const { setNodeRef } = useDroppable({ id: lane.status.id });
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const onLoadMoreRef = useRef(onLoadMore);
-  onLoadMoreRef.current = onLoadMore;
   const totalCount = lane.total_count;
   const showFraction =
     totalCount !== undefined && totalCount > lane.tickets.length;
@@ -60,7 +58,7 @@ export function LaneColumn({
           <TicketCard
             ticket={ticket}
             sortable={sortable}
-            onClick={() => onTicketClick(ticket.id)}
+            onClick={() => onTicketClick(ticket)}
           />
         </div>
       ))}
@@ -83,14 +81,14 @@ export function LaneColumn({
         ) {
           return;
         }
-        onLoadMoreRef.current?.();
+        onLoadMore();
       },
       { root, rootMargin: "120px" },
     );
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, lane.tickets.length]);
+  }, [hasMore, loadingMore, lane.tickets.length, onLoadMore]);
 
   return (
     <section className="flex h-full min-h-0 w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-muted/50 ring-1 ring-inset ring-foreground/5">

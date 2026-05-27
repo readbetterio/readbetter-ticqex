@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { CopyIcon } from "@phosphor-icons/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,25 +21,37 @@ import { apiFetch, apiFetchText } from "@/lib/api-client";
 import { useTicketRealtime } from "@/hooks/use-board-realtime";
 import { useRecentTags } from "@/hooks/use-recent-tags";
 import {
-  EmailConversationPanel,
-  type EmailThreadOrder,
-} from "./email-conversation-panel";
+  invalidateTicketMessages,
+  ticketMessagesQueryKey,
+} from "@/hooks/use-ticket-messages";
+import {
+  ticketSummaryQueryKey,
+  useTicketSummary,
+} from "@/hooks/use-ticket-summary";
+import {
+  isConversationSummary,
+  isTaskSummary,
+  type TicketSummary,
+} from "@/types/tickets";
+import type { TicketModalSeed } from "./board-ticket-seed";
+import {
+  ticketTagsQueryKey,
+  useTicketTags,
+  useTicketThreadOrder,
+  useTicketUsers,
+} from "@/hooks/use-ticket-reference-data";
+import { TicketConversationSection } from "./ticket-conversation-section";
 import { TicketCustomerSection } from "./ticket-customer-section";
 import { TicketDetailsSection } from "./ticket-details-section";
+import {
+  TicketMetaSkeleton,
+  TicketConversationSkeleton,
+} from "./ticket-modal-skeletons";
 import {
   TicketStatusCombobox,
   type StatusOption,
 } from "./ticket-status-combobox";
-import type {
-  EmailComposePayload,
-  TicketDetail,
-} from "./types";
-import {
-  isConversationDetail,
-  isTaskDetail,
-} from "./types";
-
-type StaffUser = { id: string; username: string };
+import type { EmailComposePayload, MessageRow } from "./types";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -47,91 +60,107 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+type TicketDraft = {
+  ticketId: string;
+  title?: string;
+  body?: string;
+  assigneeId?: string;
+  selectedTags?: Tag[];
+};
+
 export function TicketModal({
   ticketId,
   statuses,
+  initialSeed,
   onStatusChange,
   onClose,
   onBoardChange,
 }: {
   ticketId: string;
   statuses: StatusOption[];
+  initialSeed?: TicketModalSeed;
   onStatusChange: (
     ticketId: string,
     fromStatusId: string,
     toStatusId: string,
   ) => Promise<void>;
   onClose: () => void;
-  onBoardChange: (updated?: TicketDetail) => void;
+  onBoardChange: (updated?: { id: string; unread_count?: number }) => void;
 }) {
-  const [ticket, setTicket] = useState<TicketDetail | null>(null);
-  const [users, setUsers] = useState<StaffUser[]>([]);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [assigneeId, setAssigneeId] = useState<string>("");
-  const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
-  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const queryClient = useQueryClient();
+  const summaryQuery = useTicketSummary(ticketId);
+  const usersQuery = useTicketUsers();
+  const tagsQuery = useTicketTags();
+  const threadOrderQuery = useTicketThreadOrder();
+
+  const summary = summaryQuery.data;
+  const users = usersQuery.data ?? [];
+  const allTags = tagsQuery.data ?? [];
+  const threadOrder = threadOrderQuery.data ?? "oldest_first";
+
+  const [draft, setDraft] = useState<TicketDraft | null>(null);
   const { recentNames, touch: touchRecentTags } = useRecentTags();
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [threadOrder, setThreadOrder] = useState<EmailThreadOrder>("oldest_first");
+  const [errorState, setErrorState] = useState<{
+    ticketId: string;
+    message: string;
+  } | null>(null);
+  const currentDraft = draft?.ticketId === ticketId ? draft : null;
+  const title = currentDraft?.title ?? summary?.title ?? "";
+  const body =
+    currentDraft?.body ??
+    (summary && isTaskSummary(summary) ? (summary.body ?? "") : "");
+  const assigneeId =
+    currentDraft?.assigneeId ?? summary?.assignee_id ?? "";
+  const selectedTags = currentDraft?.selectedTags ?? summary?.tags ?? [];
+  const error =
+    errorState?.ticketId === ticketId ? errorState.message : null;
 
-  const load = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) {
-      setLoading(true);
-      setError(null);
-    }
-    try {
-      const [t, staff, settings, tags] = await Promise.all([
-        apiFetch<TicketDetail>(`/api/v1/tickets/${ticketId}`),
-        apiFetch<StaffUser[]>("/api/v1/users"),
-        apiFetch<{ email_thread_order?: EmailThreadOrder }>("/api/v1/settings"),
-        apiFetch<Tag[]>("/api/v1/tags"),
-      ]);
-      setThreadOrder(settings.email_thread_order ?? "oldest_first");
-      setTicket(t);
-      setTitle(t.title);
-      setBody(isTaskDetail(t) ? (t.body ?? "") : "");
-      setAssigneeId(t.assignee_id ?? "");
-      setSelectedTags(t.tags);
-      setAllTags(tags);
-      setUsers(staff);
+  const setCurrentError = useCallback(
+    (message: string | null) => {
+      setErrorState(message ? { ticketId, message } : null);
+    },
+    [ticketId],
+  );
 
-      if (isConversationDetail(t) && !options?.silent) {
-        await apiFetch(`/api/v1/tickets/${ticketId}/read`, { method: "POST" });
-        setTicket((prev) =>
-          prev && isConversationDetail(prev)
-            ? {
-                ...prev,
-                unread_count: 0,
-                messages: prev.messages.map((msg) =>
-                  msg.author_type === "customer" ? { ...msg, read: true } : msg,
-                ),
-              }
-            : prev,
-        );
-        onBoardChange({ ...t, unread_count: 0 });
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load ticket");
-    } finally {
-      if (!options?.silent) {
-        setLoading(false);
-      }
-    }
-  }, [ticketId, onBoardChange]);
+  const updateDraft = useCallback(
+    (patch: Omit<Partial<TicketDraft>, "ticketId">) => {
+      setDraft((current) =>
+        current?.ticketId === ticketId
+          ? { ...current, ...patch }
+          : { ticketId, ...patch },
+      );
+    },
+    [ticketId],
+  );
 
   const refreshTicket = useCallback(() => {
-    void load({ silent: true });
-  }, [load]);
+    void queryClient.invalidateQueries({
+      queryKey: ticketSummaryQueryKey(ticketId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ticketMessagesQueryKey(ticketId),
+    });
+  }, [queryClient, ticketId]);
 
   useTicketRealtime(ticketId, refreshTicket);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- load ticket on open
-    void load();
-  }, [load]);
+    const source = summary;
+    if (!source || !isConversationSummary(source)) return;
+    if ((source.unread_count ?? 0) === 0) return;
+
+    void apiFetch(`/api/v1/tickets/${ticketId}/read`, { method: "POST" }).then(
+      () => {
+        queryClient.setQueryData<TicketSummary>(
+          ticketSummaryQueryKey(ticketId),
+          (current) =>
+            current ? { ...current, unread_count: 0 } : current,
+        );
+        onBoardChange({ id: source.id, unread_count: 0 });
+      },
+    );
+  }, [summary, ticketId, queryClient, onBoardChange]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -146,16 +175,29 @@ export function TicketModal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  const displaySeed = summary ?? initialSeed;
+  const displayTitle = title || displaySeed?.title || "";
+  const headerLoading = !displaySeed && summaryQuery.isPending;
+  const metaLoading =
+    !summary && (summaryQuery.isPending || summaryQuery.isFetching);
+  const metaReady = !!summary;
+  const detailSummary = summary;
+  const isConversation = displaySeed?.kind === "conversation";
+
   async function changeStatus(statusId: string) {
-    if (!ticket || ticket.status_id === statusId) return;
+    const source = summary;
+    if (!source || source.status_id === statusId) return;
     setSaving(true);
-    setError(null);
+    setCurrentError(null);
     try {
-      await onStatusChange(ticketId, ticket.status_id, statusId);
-      const refreshed = await apiFetch<TicketDetail>(`/api/v1/tickets/${ticketId}`);
-      setTicket(refreshed);
+      await onStatusChange(ticketId, source.status_id, statusId);
+      await queryClient.invalidateQueries({
+        queryKey: ticketSummaryQueryKey(ticketId),
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to change status");
+      setCurrentError(
+        e instanceof Error ? e.message : "Failed to change status",
+      );
       onBoardChange();
     } finally {
       setSaving(false);
@@ -163,9 +205,10 @@ export function TicketModal({
   }
 
   async function saveMeta() {
-    if (!ticket) return;
+    const source = summary;
+    if (!source) return;
     setSaving(true);
-    setError(null);
+    setCurrentError(null);
     try {
       const tagNames = selectedTags
         .map((tag) => tag.name.trim())
@@ -175,18 +218,16 @@ export function TicketModal({
         assignee_id: assigneeId || null,
         tags: tagNames,
       };
-      if (isTaskDetail(ticket)) {
+      if (isTaskSummary(source)) {
         payload.body = body;
       }
       await apiFetch(`/api/v1/tickets/${ticketId}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
-      const refreshed = await apiFetch<TicketDetail>(`/api/v1/tickets/${ticketId}`);
-      setTicket(refreshed);
-      setTitle(refreshed.title);
-      setAssigneeId(refreshed.assignee_id ?? "");
-      setSelectedTags(refreshed.tags);
+      await queryClient.invalidateQueries({
+        queryKey: ticketSummaryQueryKey(ticketId),
+      });
       const existingKeys = new Set(
         allTags.map((t) => t.name.trim().toLowerCase()),
       );
@@ -194,16 +235,12 @@ export function TicketModal({
         (n) => !existingKeys.has(n.trim().toLowerCase()),
       );
       if (hasNewTag) {
-        const tags = await apiFetch<Tag[]>("/api/v1/tags");
-        setAllTags(tags);
+        await queryClient.invalidateQueries({ queryKey: ticketTagsQueryKey });
       }
       touchRecentTags(tagNames);
-      if (isTaskDetail(refreshed)) {
-        setBody(refreshed.body ?? "");
-      }
       onBoardChange();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      setCurrentError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -211,15 +248,18 @@ export function TicketModal({
 
   async function sendEmailReply(payload: EmailComposePayload) {
     setSaving(true);
-    setError(null);
+    setCurrentError(null);
     try {
       await apiFetch(`/api/v1/tickets/${ticketId}/messages`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      await load();
+      invalidateTicketMessages(queryClient, ticketId);
+      await queryClient.invalidateQueries({
+        queryKey: ticketSummaryQueryKey(ticketId),
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Reply failed");
+      setCurrentError(err instanceof Error ? err.message : "Reply failed");
       throw err;
     } finally {
       setSaving(false);
@@ -237,21 +277,43 @@ export function TicketModal({
         `/api/v1/tickets/${ticketId}/messages/${messageId}/read`,
         { method: "PATCH" },
       );
-      setTicket((prev) =>
-        prev && isConversationDetail(prev)
-          ? {
-              ...prev,
-              messages: prev.messages.map((msg) =>
-                msg.id === messageId ? { ...msg, read: result.read } : msg,
-              ),
-            }
-          : prev,
+      queryClient.setQueryData<MessageRow[]>(
+        ticketMessagesQueryKey(ticketId),
+        (current) =>
+          current?.map((msg) =>
+            msg.id === messageId ? { ...msg, read: result.read } : msg,
+          ) ?? current,
       );
       onBoardChange();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update read state");
+      setCurrentError(
+        err instanceof Error ? err.message : "Failed to update read state",
+      );
     }
   }
+
+  const statusOptions = useMemo(() => {
+    if (statuses.length > 0) return statuses;
+    if (summary?.status) {
+      return [
+        {
+          id: summary.status.id,
+          name: summary.status.name,
+          color: summary.status.color,
+        },
+      ];
+    }
+    if (initialSeed?.status) {
+      return [
+        {
+          id: initialSeed.status.id,
+          name: initialSeed.status.name,
+          color: initialSeed.status.color,
+        },
+      ];
+    }
+    return [];
+  }, [statuses, summary, initialSeed]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -263,35 +325,31 @@ export function TicketModal({
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <DialogTitle
               className="truncate"
-              title={!loading && title ? title : undefined}
+              title={displayTitle || undefined}
             >
-              {loading ? "Ticket" : title || "Ticket"}
+              {headerLoading && !displayTitle ? (
+                <Skeleton className="h-6 w-48" />
+              ) : (
+                displayTitle || "Ticket"
+              )}
             </DialogTitle>
-            {!loading && ticket && (
+            {displaySeed && (
               <>
-                {isTaskDetail(ticket) ? (
-                  <Badge variant="outline" className="shrink-0">Ticket</Badge>
+                {displaySeed.kind === "task" ? (
+                  <Badge variant="outline" className="shrink-0">
+                    Ticket
+                  </Badge>
                 ) : (
-                  <Badge variant="secondary" className="shrink-0">Email conversation</Badge>
+                  <Badge variant="secondary" className="shrink-0">
+                    Email conversation
+                  </Badge>
                 )}
-                {(ticket.status || statuses.length > 0) && (
+                {statusOptions.length > 0 && displaySeed.status_id && (
                   <TicketStatusCombobox
-                    statuses={
-                      statuses.length > 0
-                        ? statuses
-                        : ticket.status
-                          ? [
-                              {
-                                id: ticket.status.id,
-                                name: ticket.status.name,
-                                color: ticket.status.color,
-                              },
-                            ]
-                          : []
-                    }
-                    value={ticket.status_id}
+                    statuses={statusOptions}
+                    value={displaySeed.status_id}
                     onValueChange={(id) => void changeStatus(id)}
-                    disabled={saving}
+                    disabled={saving || !summary}
                   />
                 )}
               </>
@@ -319,53 +377,72 @@ export function TicketModal({
           </div>
         </DialogHeader>
 
-        {loading && (
-          <div className="space-y-3 p-6">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-4 w-2/3" />
-            <Skeleton className="h-24 w-full" />
+        {summaryQuery.isError && (
+          <div className="px-4 pt-3">
+            <Alert variant="destructive">
+              <AlertDescription>
+                {summaryQuery.error instanceof Error
+                  ? summaryQuery.error.message
+                  : "Failed to load ticket"}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 
-        {!loading && ticket && (
-          <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
+          {metaLoading ? <TicketMetaSkeleton /> : null}
+
+          {metaReady && detailSummary && (
             <div className="space-y-3 border-b border-border p-4">
               <div className="space-y-2">
                 <Label htmlFor="ticket-title">Title</Label>
                 <Input
                   id="ticket-title"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => updateDraft({ title: e.target.value })}
                 />
               </div>
-              {ticket.customer && ticket.customer_id && (
+              {detailSummary.customer && detailSummary.customer_id && (
                 <TicketCustomerSection
-                  customerId={ticket.customer_id}
+                  customerId={detailSummary.customer_id}
                   displayName={
-                    isConversationDetail(ticket) && ticket.contact_address
-                      ? ticket.contact_address
-                      : ticket.customer.username
+                    isConversationSummary(detailSummary) &&
+                    detailSummary.contact_address
+                      ? detailSummary.contact_address
+                      : detailSummary.customer.username
                   }
                   contactAddress={
-                    isConversationDetail(ticket) ? ticket.contact_address : null
+                    isConversationSummary(detailSummary)
+                      ? detailSummary.contact_address
+                      : null
                   }
                 />
               )}
               <TicketDetailsSection
                 assigneeId={assigneeId}
-                onAssigneeChange={setAssigneeId}
+                onAssigneeChange={(value) =>
+                  updateDraft({ assigneeId: value })
+                }
                 users={users}
+                usersLoading={usersQuery.isPending}
                 selectedTags={selectedTags}
-                onTagsChange={setSelectedTags}
+                onTagsChange={(tags) => updateDraft({ selectedTags: tags })}
                 allTags={allTags}
+                tagsLoading={tagsQuery.isPending}
                 recentNames={recentNames}
                 saving={saving}
                 onSave={() => void saveMeta()}
-                body={isTaskDetail(ticket) ? body : undefined}
-                onBodyChange={isTaskDetail(ticket) ? setBody : undefined}
+                body={
+                  isTaskSummary(detailSummary) ? body : undefined
+                }
+                onBodyChange={
+                  isTaskSummary(detailSummary)
+                    ? (value) => updateDraft({ body: value })
+                    : undefined
+                }
                 summary={[
                   users.find((u) => u.id === assigneeId)?.username ??
-                    ticket.assignee?.username ??
+                    detailSummary.assignee?.username ??
                     "Unassigned",
                   selectedTags.length > 0
                     ? selectedTags.map((tag) => tag.name).join(", ")
@@ -373,19 +450,23 @@ export function TicketModal({
                 ].join(" · ")}
               />
             </div>
+          )}
 
-            {!isTaskDetail(ticket) && (
-              <EmailConversationPanel
-                ticket={ticket}
-                ticketId={ticketId}
-                threadOrder={threadOrder}
-                onSubmit={sendEmailReply}
-                saving={saving}
-                onToggleMessageRead={(id) => void toggleMessageRead(id)}
-              />
-            )}
-          </div>
-        )}
+          {detailSummary && isConversationSummary(detailSummary) && (
+            <TicketConversationSection
+              summary={detailSummary}
+              ticketId={ticketId}
+              threadOrder={threadOrder}
+              onSubmit={sendEmailReply}
+              saving={saving}
+              onToggleMessageRead={(id) => void toggleMessageRead(id)}
+            />
+          )}
+
+          {isConversation && !detailSummary && summaryQuery.isFetching && (
+            <TicketConversationSkeleton />
+          )}
+        </div>
 
         {error && (
           <div className="px-4 pb-3">

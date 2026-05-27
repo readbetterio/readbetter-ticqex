@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { PlusIcon } from "@phosphor-icons/react";
@@ -18,6 +26,11 @@ import { useBoardQuery, type BoardResponse } from "@/hooks/use-board-query";
 import { useBoardDrag } from "@/hooks/use-board-drag";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
 import { useBoardLaneLoadMore } from "@/hooks/use-board-lane-load-more";
+import { prefetchTicketReferenceData } from "@/hooks/use-ticket-reference-data";
+import {
+  ticketSummaryQueryKey,
+} from "@/hooks/use-ticket-summary";
+import { ticketMessagesQueryKey } from "@/hooks/use-ticket-messages";
 import { applyTicketDrop } from "./board-dnd-utils";
 import {
   buildFilterContext,
@@ -30,8 +43,8 @@ import { BoardSearchBar } from "./board-search-bar";
 import { BoardSortSelect } from "./board-sort-select";
 import { TicketCard } from "./ticket-card";
 import { LaneColumn } from "./lane-column";
-import { TicketModal } from "./ticket-modal";
 import { CreateTicketModal } from "./create-ticket-modal";
+import { BoardTicketModalProvider } from "./board-ticket-modal-context";
 import {
   buildOptimisticBoardTicket,
   insertNewTicketIntoLane,
@@ -41,12 +54,19 @@ import {
   ticketDetailToBoardTicket,
   type CreateTicketPayload,
 } from "./board-create-client";
-import type { BoardLane, TicketDetail } from "./types";
+import {
+  boardTicketToModalSeed,
+  findBoardTicketWithStatus,
+} from "./board-ticket-seed";
+import { boardTicketPath } from "./board-ticket-route";
+import type { BoardLane, BoardTicket, TicketDetail } from "./types";
 
 const MANUAL_SORT: BoardSort = { mode: "manual" };
 const REALTIME_MUTE_MS = 600;
+const EMPTY_LANES: BoardLane[] = [];
 
-export function KanbanBoard() {
+export function KanbanBoard({ children }: { children?: ReactNode }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const {
     filter,
@@ -62,7 +82,7 @@ export function KanbanBoard() {
   const [querySort, setQuerySort] = useState(sort);
 
   const boardQuery = useBoardQuery(filter, querySort, searchQuery);
-  const lanes = boardQuery.data?.lanes ?? [];
+  const lanes = boardQuery.data?.lanes ?? EMPTY_LANES;
   const capped = boardQuery.data?.capped ?? false;
   const subsetActive = viewNarrowedActive || capped;
 
@@ -76,14 +96,45 @@ export function KanbanBoard() {
   const [allStatuses, setAllStatuses] = useState<
     { id: string; name: string; color: string }[]
   >([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
   const statusesLoaded = useRef(false);
 
+  const openTicket = useCallback(
+    (ticket: BoardTicket) => {
+      const ticketId = ticket.id;
+      void queryClient.prefetchQuery({
+        queryKey: ticketSummaryQueryKey(ticketId),
+        queryFn: () =>
+          apiFetch(`/api/v1/tickets/${ticketId}/summary`),
+      });
+      if (ticket.kind === "conversation") {
+        void queryClient.prefetchQuery({
+          queryKey: ticketMessagesQueryKey(ticketId),
+          queryFn: () => apiFetch(`/api/v1/tickets/${ticketId}/messages`),
+        });
+      }
+      router.push(boardTicketPath(ticketId));
+    },
+    [queryClient, router],
+  );
+
+  const getInitialSeed = useCallback(
+    (ticketId: string) => {
+      const match = findBoardTicketWithStatus(lanes, ticketId);
+      if (!match) return undefined;
+      return boardTicketToModalSeed(match.ticket, match.status);
+    },
+    [lanes],
+  );
+
   const loading = boardQuery.isPending && !boardQuery.data;
   const error =
     boardQuery.error instanceof Error ? boardQuery.error.message : null;
+
+  useEffect(() => {
+    prefetchTicketReferenceData(queryClient);
+  }, [queryClient]);
 
   useEffect(() => {
     if (statusesLoaded.current) return;
@@ -205,7 +256,7 @@ export function KanbanBoard() {
   );
 
   const handleBoardChange = useCallback(
-    (updated?: TicketDetail) => {
+    (updated?: { id: string; unread_count?: number }) => {
       if (updated && updated.unread_count === 0) {
         patchTicketUnread(updated.id, 0);
         return;
@@ -344,6 +395,15 @@ export function KanbanBoard() {
   );
 
   const hasSearchResults = lanes.some((lane) => lane.tickets.length > 0);
+  const modalContext = useMemo(
+    () => ({
+      statuses: allStatuses,
+      getInitialSeed,
+      onStatusChange: moveTicketStatus,
+      onBoardChange: handleBoardChange,
+    }),
+    [allStatuses, getInitialSeed, handleBoardChange, moveTicketStatus],
+  );
 
   const header = (
     <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
@@ -378,47 +438,45 @@ export function KanbanBoard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
-          <Skeleton className="h-8 w-24" />
-          <div className="flex flex-1 items-center justify-end gap-2 max-sm:w-full">
-            <Skeleton className="h-8 w-full sm:max-w-xs lg:w-72" />
-            <Skeleton className="h-8 w-56" />
+      <BoardTicketModalProvider value={modalContext}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
+            <Skeleton className="h-8 w-24" />
+            <div className="flex flex-1 items-center justify-end gap-2 max-sm:w-full">
+              <Skeleton className="h-8 w-full sm:max-w-xs lg:w-72" />
+              <Skeleton className="h-8 w-56" />
+            </div>
           </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-full w-72 shrink-0 rounded-xl" />
-            ))}
+          <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+            <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-full w-72 shrink-0 rounded-xl" />
+              ))}
+            </div>
           </div>
+          {children}
         </div>
-        {selectedId && (
-          <TicketModal
-            ticketId={selectedId}
-            statuses={allStatuses}
-            onStatusChange={moveTicketStatus}
-            onClose={() => setSelectedId(null)}
-            onBoardChange={handleBoardChange}
-          />
-        )}
-      </div>
+      </BoardTicketModalProvider>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-1 p-8">
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      </div>
+      <BoardTicketModalProvider value={modalContext}>
+        <div className="flex flex-1 p-8">
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+        {children}
+      </BoardTicketModalProvider>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      {header}
+    <BoardTicketModalProvider value={modalContext}>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header}
 
       {searchActive && !boardQuery.isFetching && !hasSearchResults ? (
         <p className="px-4 pt-2 text-sm text-muted-foreground">
@@ -448,7 +506,7 @@ export function KanbanBoard() {
                   key={lane.status.id}
                   lane={lane}
                   sortable
-                  onTicketClick={setSelectedId}
+                  onTicketClick={openTicket}
                   hasMore={searchActive ? false : (lane.has_more ?? false)}
                   loadingMore={loadingLaneIds.has(lane.status.id)}
                   onLoadMore={() => void loadMore(lane)}
@@ -471,23 +529,16 @@ export function KanbanBoard() {
         </DndContext>
       </div>
 
-      {selectedId && (
-        <TicketModal
-          ticketId={selectedId}
-          statuses={allStatuses}
-          onStatusChange={moveTicketStatus}
-          onClose={() => setSelectedId(null)}
-          onBoardChange={handleBoardChange}
-        />
-      )}
+        {children}
 
-      {showCreate && (
-        <CreateTicketModal
-          statuses={allStatuses}
-          onClose={() => setShowCreate(false)}
-          onCreate={handleCreateTicket}
-        />
-      )}
-    </div>
+        {showCreate && (
+          <CreateTicketModal
+            statuses={allStatuses}
+            onClose={() => setShowCreate(false)}
+            onCreate={handleCreateTicket}
+          />
+        )}
+      </div>
+    </BoardTicketModalProvider>
   );
 }

@@ -14,16 +14,20 @@ import { cn } from "@/lib/utils";
 import { EmailCompose } from "./email-compose";
 import { EmailMessageBody } from "./email-message-body";
 import { EmailMessageHeader } from "./email-message-header";
-import type {
-  ConversationTicketDetail,
-  EmailComposePayload,
-  MessageRow,
-} from "./types";
+import type { ConversationTicketSummary } from "@/types/tickets";
+import type { EmailComposePayload, MessageRow } from "./types";
 import { isEmailMessage, messageSenderEmail } from "./email-utils";
 
 export type EmailThreadOrder = "oldest_first" | "newest_first";
 
 const CONVERSATION_EXPANDED_KEY = "ticqex.ticket-conversation.expanded.v1";
+
+type EmailConversationTicket = Pick<
+  ConversationTicketSummary,
+  "title" | "channel" | "contact_address" | "customer"
+> & {
+  messages: MessageRow[];
+};
 
 function scrollToLatest(el: HTMLElement, order: EmailThreadOrder) {
   if (order === "newest_first") {
@@ -49,7 +53,7 @@ export function EmailConversationPanel({
   saving,
   onToggleMessageRead,
 }: {
-  ticket: ConversationTicketDetail;
+  ticket: EmailConversationTicket;
   ticketId: string;
   threadOrder: EmailThreadOrder;
   onSubmit: (payload: EmailComposePayload) => Promise<void>;
