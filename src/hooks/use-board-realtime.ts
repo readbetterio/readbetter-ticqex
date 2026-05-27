@@ -2,21 +2,22 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { BoardDragSession } from "@/hooks/use-board-drag";
 
 const DEBOUNCE_MS = 400;
 
 function useDebouncedRefresh(
   onRefresh: () => void,
-  mutedUntilRef?: RefObject<number>,
+  dragSessionRef?: RefObject<BoardDragSession>,
 ) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onRefreshRef = useRef(onRefresh);
-  const mutedUntilRefStable = useRef(mutedUntilRef);
+  const dragSessionRefStable = useRef(dragSessionRef);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
-    mutedUntilRefStable.current = mutedUntilRef;
-  }, [onRefresh, mutedUntilRef]);
+    dragSessionRefStable.current = dragSessionRef;
+  }, [onRefresh, dragSessionRef]);
 
   useEffect(() => {
     return () => {
@@ -31,8 +32,9 @@ function useDebouncedRefresh(
       clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = setTimeout(() => {
-      const mutedUntil = mutedUntilRefStable.current?.current ?? 0;
-      if (Date.now() < mutedUntil) return;
+      const session = dragSessionRefStable.current?.current;
+      if (session?.active) return;
+      if (Date.now() < (session?.mutedUntil ?? 0)) return;
       onRefreshRef.current();
     }, DEBOUNCE_MS);
   }, []);
@@ -40,9 +42,9 @@ function useDebouncedRefresh(
 
 export function useBoardRealtime(
   onRefresh: () => void,
-  mutedUntilRef?: RefObject<number>,
+  dragSessionRef?: RefObject<BoardDragSession>,
 ) {
-  const scheduleRefresh = useDebouncedRefresh(onRefresh, mutedUntilRef);
+  const scheduleRefresh = useDebouncedRefresh(onRefresh, dragSessionRef);
 
   useEffect(() => {
     const supabase = createClient();
