@@ -1,5 +1,6 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
+import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
 import { setLaneOrder } from "@server/services/board-lane-orders";
 
 export type BoardMoveFilterContext = {
@@ -56,7 +57,10 @@ export async function moveTicketOnBoard(
 
     const { error: statusError } = await db
       .from("tickets")
-      .update({ status_id: input.to_status_id })
+      .update({
+        status_id: input.to_status_id,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", input.ticket_id);
 
     if (statusError) throw ApiError.internal(statusError.message);
@@ -84,6 +88,10 @@ export async function moveTicketOnBoard(
     input.target_ticket_ids,
     laneOrderOptions(fc?.target_visible_ticket_ids),
   );
+
+  if (crossLane) {
+    invalidateLaneSortCache([input.from_status_id, input.to_status_id]);
+  }
 
   return {
     ticket_id: input.ticket_id,
