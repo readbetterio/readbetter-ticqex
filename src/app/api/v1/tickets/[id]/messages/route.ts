@@ -2,15 +2,18 @@ import { NextRequest } from "next/server";
 import { jsonData } from "@server/lib/response";
 import { withAuth, parseJsonBody } from "@server/lib/route-handler";
 import { messageInputSchema, parseBody } from "@server/lib/validation/schemas";
-import { createAgentReply, listMessages } from "@server/services/messages";
+import {
+  createAgentReply,
+  listEnrichedMessages,
+} from "@server/services/messages";
 import { enqueueOutboundEmail } from "@server/adapters/email/background";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(request: NextRequest, { params }: Params) {
-  return withAuth(request, async () => {
+  return withAuth(request, async (auth) => {
     const { id } = await params;
-    return jsonData(await listMessages(id));
+    return jsonData(await listEnrichedMessages(id, auth.userId));
   });
 }
 

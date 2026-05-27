@@ -112,6 +112,11 @@ export async function listMessages(ticketId: string) {
   return data ?? [];
 }
 
+export async function listEnrichedMessages(ticketId: string, userId?: string) {
+  const rows = await listMessages(ticketId);
+  return enrichTicketMessages(rows, userId);
+}
+
 export async function enrichTicketMessages(
   rows: MessageDbRow[],
   userId?: string,

@@ -1,4 +1,4 @@
-import type { TicketChannel, TicketKind } from "@/types/database";
+import type { TicketChannel } from "@/types/database";
 
 export type BoardLane = {
   status: { id: string; name: string; color: string };
@@ -7,11 +7,9 @@ export type BoardLane = {
   has_more?: boolean;
 };
 
-export type BoardTicket = {
+type BoardTicketBase = {
   id: string;
   title: string;
-  kind: TicketKind;
-  channel: TicketChannel | null;
   origin: string;
   customer_id: string | null;
   assignee_id: string | null;
@@ -25,67 +23,27 @@ export type BoardTicket = {
   unread_count: number;
 };
 
-export type TicketDetailBase = BoardTicket & {
-  body: string | null;
-  contact_address: string | null;
-  status_id: string;
-  status: { id: string; name: string; color: string } | null;
-};
-
-export type TaskTicketDetail = TicketDetailBase & {
+export type TaskBoardTicket = BoardTicketBase & {
   kind: "task";
-  messages?: never;
+  channel: null;
 };
 
-export type ConversationTicketDetail = TicketDetailBase & {
+export type ConversationBoardTicket = BoardTicketBase & {
   kind: "conversation";
   channel: TicketChannel;
-  messages: MessageRow[];
 };
 
-export type TicketDetail = TaskTicketDetail | ConversationTicketDetail;
+export type BoardTicket = TaskBoardTicket | ConversationBoardTicket;
 
-export function isTaskDetail(t: TicketDetail): t is TaskTicketDetail {
-  return t.kind === "task";
-}
-
-export function isConversationDetail(
-  t: TicketDetail,
-): t is ConversationTicketDetail {
-  return t.kind === "conversation";
-}
-
-export type MessageAttachment = {
-  id: string;
-  filename: string;
-  content_type: string;
-  size_bytes: number;
-};
-
-export type EmailDeliveryStatus =
-  | "sent"
-  | "delivered"
-  | "bounced"
-  | "failed"
-  | "pending";
-
-export type MessageRow = {
-  id: string;
-  body: string;
-  visibility: "public" | "internal";
-  author_type: string;
-  author_id: string | null;
-  channel: string;
-  created_at: string;
-  read?: boolean;
-  email_from?: string | null;
-  email_to?: string[];
-  email_cc?: string[];
-  email_subject?: string | null;
-  email_body_html?: string | null;
-  email_delivery_status?: EmailDeliveryStatus | string | null;
-  attachments?: MessageAttachment[];
-};
+export type {
+  ConversationTicketDetail,
+  EmailDeliveryStatus,
+  MessageAttachment,
+  MessageRow,
+  TaskTicketDetail,
+  TicketDetail,
+} from "@/types/tickets";
+export { isConversationDetail, isTaskDetail } from "@/types/tickets";
 
 export type EmailSnippet = {
   id: string;

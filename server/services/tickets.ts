@@ -19,9 +19,10 @@ import {
   setTicketTags,
 } from "@server/services/tags";
 import {
-  enrichTicketMessages,
   formatMessageRow,
+  listEnrichedMessages,
 } from "@server/services/messages";
+import { getUnreadCountsByTicket } from "@server/services/message-reads";
 import { syncTicketLaneOrderOnStatusChange } from "@server/services/board-lane-orders";
 import { touchTicket } from "@server/services/ticket-touch";
 import type { AuthContext } from "@server/middleware/auth";
@@ -129,7 +130,7 @@ function formatTicketListItem(
   };
 }
 
-export async function getTicket(id: string, userId?: string) {
+export async function getTicketSummary(id: string, userId?: string) {
   const db = createAdminClient();
   const { data, error } = await db
     .from("tickets")
@@ -142,24 +143,33 @@ export async function getTicket(id: string, userId?: string) {
   if (error || !data) throw ApiError.notFound("Ticket not found");
 
   const row = data as TicketListRow;
-  const fieldsMap = await loadCustomFieldsMap(db, "ticket", [id]);
-  const tagsMap = await loadTagsForTickets([id]);
+  const [fieldsMap, tagsMap] = await Promise.all([
+    loadCustomFieldsMap(db, "ticket", [id]),
+    loadTagsForTickets([id]),
+  ]);
   const base = formatTicketListItem(row, fieldsMap, tagsMap);
 
-  if (isTaskTicket(row)) {
-    return { ...base, messages: [] as ReturnType<typeof formatMessageRow>[] };
+  let unread_count = 0;
+  if (!isTaskTicket(row) && userId) {
+    const counts = await getUnreadCountsByTicket([id], userId);
+    unread_count = counts.get(id) ?? 0;
   }
 
-  const { data: messages } = await db
-    .from("messages")
-    .select("*")
-    .eq("ticket_id", id)
-    .eq("visibility", "public")
-    .order("created_at");
+  return { ...base, unread_count };
+}
 
-  const enrichedMessages = await enrichTicketMessages(messages ?? [], userId);
+export async function getTicket(id: string, userId?: string) {
+  const summary = await getTicketSummary(id, userId);
 
-  return { ...base, messages: enrichedMessages };
+  if (isTaskTicket({ kind: summary.kind })) {
+    return {
+      ...summary,
+      messages: [] as ReturnType<typeof formatMessageRow>[],
+    };
+  }
+
+  const messages = await listEnrichedMessages(id, userId);
+  return { ...summary, messages };
 }
 
 export type ContextMessageRow = {

@@ -2,7 +2,11 @@ import { NextRequest } from "next/server";
 import { jsonData } from "@server/lib/response";
 import { withAuth, parseJsonBody } from "@server/lib/route-handler";
 import { parseBody, updateTicketSchema } from "@server/lib/validation/schemas";
-import { getTicket, updateTicket, deleteTicket } from "@server/services/tickets";
+import {
+  getTicket,
+  updateTicket,
+  deleteTicket,
+} from "@server/services/tickets";
 
 type Params = { params: Promise<{ id: string }> };
 
