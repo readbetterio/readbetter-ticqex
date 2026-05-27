@@ -285,6 +285,13 @@ export async function updateTicket(
   if (input.body !== undefined) patch.body = input.body;
   if (input.status_id !== undefined) patch.status_id = input.status_id;
   if (input.assignee_id !== undefined) patch.assignee_id = input.assignee_id;
+  if (
+    input.status_id !== undefined &&
+    previousStatusId &&
+    previousStatusId !== input.status_id
+  ) {
+    patch.updated_at = new Date().toISOString();
+  }
 
   const hasScalarPatch = Object.keys(patch).length > 0;
   const hasTagsPatch = input.tags !== undefined;
