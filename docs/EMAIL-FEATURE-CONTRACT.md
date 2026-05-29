@@ -10,7 +10,8 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_cc text[] NOT NULL DE
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_subject text;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_body_html text;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_delivery_status text;
-ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS resend_outbound_id text;
+
+-- provider-specific ids live in message_external_refs
 
 -- global_settings: agent signature appended to outbound replies
 ALTER TABLE public.global_settings ADD COLUMN IF NOT EXISTS email_signature text NOT NULL DEFAULT '';
@@ -72,9 +73,9 @@ Returns signed download URL redirect or JSON `{ url }`.
 
 ## API: GET/POST `/api/v1/email-snippets` CRUD for snippets
 
-## API: POST `/api/webhooks/resend/events`
+## API: POST `/api/webhooks/integrations/resend/events`
 
-Resend delivery webhooks (`email.sent`, `email.delivered`, `email.bounced`, `email.failed`) → update `messages.email_delivery_status` via `resend_outbound_id`.
+Resend delivery webhooks (`email.sent`, `email.delivered`, `email.bounced`, `email.failed`) → update `messages.email_delivery_status` via outbound provider ref in `message_external_refs`.
 
 ## Message response shape (getTicket messages[])
 

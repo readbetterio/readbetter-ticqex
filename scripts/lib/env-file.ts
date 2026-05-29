@@ -1,8 +1,12 @@
 import fs from "node:fs";
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export function setEnvLine(content: string, key: string, value: string): string {
   const line = `${key}=${value}`;
-  const pattern = new RegExp(`^${key}=.*$`, "m");
+  const pattern = new RegExp(`^#?\\s*${escapeRegExp(key)}=.*$`, "m");
 
   if (pattern.test(content)) {
     return content.replace(pattern, line);

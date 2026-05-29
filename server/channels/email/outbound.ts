@@ -1,13 +1,22 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
-import { resendAdapter } from "./resend";
 import {
   finalizeAttachmentUploads,
   loadOutboundAttachments,
 } from "@server/services/attachment-uploads";
+import {
+  insertMessageExternalRef,
+} from "@server/services/message-external-refs";
 import { ensureEmailThread } from "@server/services/email-threading";
 import { normalizeMessageId } from "@server/lib/utils";
+import { getChannelIntegrationEmail } from "@server/channels/runtime";
+import type { ChannelOutboundRequest } from "@server/channels/types";
 
 export async function sendOutboundEmailForMessage(messageId: string) {
+  const emailApi = getChannelIntegrationEmail("email");
+  if (!emailApi) {
+    throw new Error("Email channel has no integration email handler");
+  }
+
   const db = createAdminClient();
 
   const { data: message } = await db
@@ -27,7 +36,7 @@ export async function sendOutboundEmailForMessage(messageId: string) {
 
   const { data: ticket } = await db
     .from("tickets")
-    .select("id")
+    .select("id, channel")
     .eq("id", message.ticket_id)
     .single();
   if (!ticket) return;
@@ -47,7 +56,7 @@ export async function sendOutboundEmailForMessage(messageId: string) {
 
   const staged = await loadOutboundAttachments(messageId);
 
-  const { messageId: sentMessageId, resendId } = await resendAdapter.send({
+  const { messageId: sentMessageId, providerRef } = await emailApi.send({
     to,
     from,
     cc: cc.length ? cc : undefined,
@@ -70,9 +79,20 @@ export async function sendOutboundEmailForMessage(messageId: string) {
     .update({
       email_message_id: canonicalMessageId,
       email_delivery_status: "sent",
-      resend_outbound_id: resendId ?? null,
     })
     .eq("id", messageId);
+
+  if (providerRef) {
+    await insertMessageExternalRef({
+      messageId,
+      provider: providerRef.provider,
+      integrationKey: providerRef.integrationKey,
+      direction: providerRef.direction,
+      refType: providerRef.refType,
+      externalId: providerRef.externalId,
+      metadata: providerRef.metadata,
+    });
+  }
 
   if (subject) {
     await ensureEmailThread(ticket.id, subject, canonicalMessageId);
@@ -80,3 +100,9 @@ export async function sendOutboundEmailForMessage(messageId: string) {
 
   await finalizeAttachmentUploads(ticket.id, messageId, staged);
 }
+
+export const emailOutboundHandler = {
+  async send(request: ChannelOutboundRequest): Promise<void> {
+    await sendOutboundEmailForMessage(request.messageId);
+  },
+};

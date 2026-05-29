@@ -21,8 +21,19 @@ export type MessageDbRow = {
   email_subject: string | null;
   email_body_html: string | null;
   email_delivery_status: string | null;
-  resend_inbound_id: string | null;
-  resend_outbound_id: string | null;
+};
+
+export type MessageExternalRefDbRow = {
+  id: string;
+  message_id: string;
+  provider: string;
+  integration_key: string;
+  direction: "inbound" | "outbound";
+  ref_type: string;
+  external_id: string;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Json =

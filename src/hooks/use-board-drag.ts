@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   PointerSensor,
   closestCenter,
@@ -8,7 +8,6 @@ import {
   useSensor,
   useSensors,
   type CollisionDetection,
-  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -76,7 +75,9 @@ export function useBoardDrag({
   });
   const wasManualAtDragStart = useRef(false);
 
-  lanesRef.current = lanes;
+  useEffect(() => {
+    lanesRef.current = lanes;
+  }, [lanes]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -109,7 +110,7 @@ export function useBoardDrag({
   );
 
   const onDragCancel = useCallback(
-    (_event: DragCancelEvent) => {
+    () => {
       clearDrag();
       revertDrag();
     },

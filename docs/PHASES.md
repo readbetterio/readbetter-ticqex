@@ -37,7 +37,7 @@ Timelines are estimates for a solo/small team. Phases are sequential — each de
 - [x] Seed script: default statuses, admin user, sample data
 - [x] RLS enabled on all tables; service role for API
 - [x] Auth: Supabase email/password login for staff
-- [x] Service layer structure (`/server/services/`, `/server/adapters/`)
+- [x] Service layer structure (`/server/services/`)
 - [x] `/enterprise` directory with README explaining open-core boundary
 - [x] MIT LICENSE in root
 - [x] Health check: `GET /api/health`
@@ -145,7 +145,7 @@ See [INTEGRATIONS.md](./INTEGRATIONS.md) for full spec.
 
 ### Deliverables
 
-- [x] Resend adapter (`/server/adapters/email/resend.ts`)
+- [x] Resend integration (`/server/integrations/resend`)
 - [x] Resend inbound webhook endpoint
 - [x] Background inbound email processing (`after()`)
   - [x] Parse email → find/create customer → match/create ticket → create message

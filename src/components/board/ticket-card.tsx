@@ -6,7 +6,42 @@ import { Avatar, AvatarFallback, AvatarGroup } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import type { BoardTicket } from "./types";
+import type {
+  BoardTicket,
+  TicketCardBadgeVariant,
+  TicketCardSurface,
+} from "./types";
+
+function mapBadgeVariant(
+  variant: TicketCardBadgeVariant | undefined,
+): "default" | "outline" | "destructive" | "secondary" {
+  if (variant === "warning") return "destructive";
+  return variant ?? "default";
+}
+
+function CardBadges({
+  badges,
+  className,
+}: {
+  badges: TicketCardSurface["badges"];
+  className?: string;
+}) {
+  if (badges.length === 0) return null;
+
+  return (
+    <div className={cn("flex shrink-0 flex-wrap justify-end gap-1", className)}>
+      {badges.map((badge) => (
+        <Badge
+          key={badge.label}
+          variant={mapBadgeVariant(badge.variant)}
+          className="text-[10px]"
+        >
+          {badge.label}
+        </Badge>
+      ))}
+    </div>
+  );
+}
 
 function TicketCardContent({
   ticket,
@@ -15,29 +50,41 @@ function TicketCardContent({
   ticket: BoardTicket;
   sortable: boolean;
 }) {
-  const customEntries = Object.entries(ticket.custom_fields).slice(0, 2);
+  const surface = ticket.card_surface;
+  const preview = surface.preview || ticket.preview;
 
   return (
     <Card size="sm" className={cn("py-0", sortable && "pointer-events-none")}>
       <CardContent className="space-y-2 py-3">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-medium text-foreground">{ticket.title}</h3>
-          {ticket.kind === "conversation" && (
-            <Badge variant="outline" className="shrink-0 text-[10px]">
-              Email
-            </Badge>
-          )}
+          <CardBadges badges={surface.badges} />
         </div>
-        {ticket.preview && (
-          <p className="line-clamp-2 text-xs text-muted-foreground">
-            {ticket.preview}
-          </p>
-        )}
-        {customEntries.length > 0 && (
+        {surface.warning_badges.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {customEntries.map(([key, value]) => (
-              <Badge key={key} variant="secondary" className="text-[10px]">
-                {key}: {String(value)}
+            {surface.warning_badges.map((badge) => (
+              <Badge
+                key={badge.label}
+                variant={mapBadgeVariant(badge.variant)}
+                className="text-[10px]"
+              >
+                {badge.label}
+              </Badge>
+            ))}
+          </div>
+        )}
+        {preview && (
+          <p className="line-clamp-2 text-xs text-muted-foreground">{preview}</p>
+        )}
+        {surface.chips.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {surface.chips.map((chip) => (
+              <Badge
+                key={`${chip.label}:${chip.value}`}
+                variant="secondary"
+                className="text-[10px]"
+              >
+                {chip.label}: {chip.value}
               </Badge>
             ))}
           </div>

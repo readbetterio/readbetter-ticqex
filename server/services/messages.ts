@@ -8,6 +8,10 @@ import {
   type TicketRow,
 } from "@server/domain/ticket";
 import { linkUploadsToMessage } from "@server/services/attachment-uploads";
+import {
+  assertChannelReadyToSend,
+  assertSendRecipientMatchesLockedFields,
+} from "@server/channels/field-enforcement";
 import { prepareAgentOutboundReply } from "@server/services/outbound-replies";
 import { loadReadMessageIds } from "@server/services/message-reads";
 import { touchTicket } from "@server/services/ticket-touch";
@@ -149,7 +153,6 @@ export type InsertMessageInput = {
   emailCc?: string[];
   emailSubject?: string | null;
   emailBodyHtml?: string | null;
-  resendInboundId?: string | null;
   emailDeliveryStatus?: "pending" | null;
 };
 
@@ -171,7 +174,6 @@ async function insertMessage(input: InsertMessageInput): Promise<MessageDbRow> {
       email_cc: input.emailCc ?? [],
       email_subject: input.emailSubject ?? null,
       email_body_html: input.emailBodyHtml ?? null,
-      resend_inbound_id: input.resendInboundId ?? null,
       email_delivery_status: input.emailDeliveryStatus ?? null,
     })
     .select()
@@ -239,8 +241,13 @@ export async function createAgentReply(
   if (shouldSendEmail) {
     const contactAddress = ticketRow.contact_address?.trim();
     if (!contactAddress) {
-      throw ApiError.internal("Ticket contact address not found");
+      throw ApiError.badRequest("Ticket contact address is required to send email");
     }
+
+    assertChannelReadyToSend("email", {
+      contact_address: contactAddress,
+      custom_fields: {},
+    });
 
     const replyContext = await loadAgentReplyContext(ticketId);
     const prepared = await prepareAgentOutboundReply(
@@ -251,6 +258,13 @@ export async function createAgentReply(
       replyContext,
       { body: input.body, email: input.email },
     );
+
+    assertSendRecipientMatchesLockedFields(
+      "email",
+      { contact_address: contactAddress, custom_fields: {} },
+      prepared.emailTo,
+    );
+
     body = prepared.body;
     emailFrom = prepared.emailFrom;
     emailTo = prepared.emailTo;
@@ -295,7 +309,6 @@ export async function createInboundCustomerMessage(
     emailCc: string[];
     emailSubject: string;
     emailBodyHtml?: string | null;
-    resendInboundId?: string | null;
   },
 ) {
   await loadMessageTicket(ticketId);
@@ -316,7 +329,6 @@ export async function createInboundCustomerMessage(
     emailCc: input.emailCc,
     emailSubject: input.emailSubject,
     emailBodyHtml: input.emailBodyHtml ?? null,
-    resendInboundId: input.resendInboundId ?? null,
   });
 
   return { message };

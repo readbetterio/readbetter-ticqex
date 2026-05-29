@@ -6,9 +6,15 @@ import {
   parseBody,
 } from "@server/lib/validation/schemas";
 import { getSettings, patchSettings } from "@server/services/settings";
+import { loadTicqexConfig } from "@server/config";
 
 export async function GET(request: NextRequest) {
-  return withAuth(request, async () => jsonData(await getSettings()));
+  return withAuth(request, async () =>
+    jsonData({
+      ...(await getSettings()),
+      channels: loadTicqexConfig().channels,
+    }),
+  );
 }
 
 export async function PATCH(request: NextRequest) {

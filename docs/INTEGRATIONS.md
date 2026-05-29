@@ -1,6 +1,6 @@
 # Integrations
 
-> Related: [API.md](./API.md) · [DATA-MODEL.md](./DATA-MODEL.md) · [PHASES.md](./PHASES.md)
+> Related: [API.md](./API.md) | [DATA-MODEL.md](./DATA-MODEL.md) | [PHASES.md](./PHASES.md) | [SENDGRID-INTEGRATION-GUIDE.md](./SENDGRID-INTEGRATION-GUIDE.md)
 
 ## Integration architecture
 
@@ -26,49 +26,46 @@
 
 ## Email (Resend)
 
-### Adapter interface
+### Channel and integration contracts
 
-Swappable provider behind a common interface. Resend is the v1 implementation.
+Email is a channel. Resend is the provider integration that powers the email channel in this repo.
 
 ```typescript
-// /server/adapters/email/types.ts
+// server/channels/email/types.ts
 
-interface EmailAdapter {
-  send(params: OutboundEmail): Promise<{ messageId: string }>
-  parseInbound(raw: InboundWebhookPayload): ParsedEmail
+interface ParsedEmail {
+  from: string
+  to: string[]
+  cc: string[]
+  subject: string
+  body: string
+  messageId: string
+  providerRef?: EmailProviderRef
+  inReplyTo?: string
+  references?: string[]
+  attachments: ParsedEmailAttachment[]
 }
 
 interface OutboundEmail {
   to: string
   from: string           // "Support <support@yourdomain.com>"
   subject: string
-  body: string           // plain text or HTML
+  body: string
+  html?: string
+  cc?: string[]
   inReplyTo?: string     // Message-ID for threading
   references?: string[]  // Thread Message-IDs
-  attachments?: Attachment[]
-}
-
-interface ParsedEmail {
-  from: string
-  to: string
-  subject: string
-  body: string
-  messageId: string
-  inReplyTo?: string
-  references?: string[]
-  attachments: ParsedAttachment[]
+  attachments?: EmailAttachment[]
 }
 ```
 
-Implementation: `/server/adapters/email/resend.ts`
-
-Future: add `/server/adapters/email/postmark.ts` etc. without changing service layer.
+Resend-specific code lives in `server/integrations/resend/`. Email channel behavior lives in `server/channels/email/`.
 
 ### Inbound email flow
 
 ```
 1. Customer sends email to support@yourdomain.com
-2. Resend receives → POST /api/webhooks/resend/inbound
+2. Resend receives → POST /api/webhooks/integrations/resend/inbound
 3. Webhook route validates signature → schedules background work via `after()`
 4. Background work runs:
    a. Parse email (from, subject, body, headers, attachments)
@@ -115,7 +112,7 @@ Triggered when a **public** message is created with `channel: admin` or `channel
       - Subject: "Re: {ticket.title}"
       - In-Reply-To: last message's email_message_id
       - References: all message IDs in thread
-   c. Send via Resend adapter
+   c. Send via Resend integration
    d. Store returned Message-ID on the message row
 4. Internal notes (visibility: internal) skip this flow entirely
 ```
@@ -132,11 +129,24 @@ async function findOrCreateCustomer(username: string): Promise<Customer> {
 
 `username` is typically an email address but can be any unique string (external ID, handle).
 
+### Webhook URLs (Resend)
+
+Configure Resend webhooks to hit the generic integration route (no installation IDs):
+
+| Event | Resend event type(s) | URL |
+|-------|----------------------|-----|
+| Inbound | `email.received` | `{NEXT_PUBLIC_APP_URL}/api/webhooks/integrations/resend/inbound` |
+| Delivery | `email.sent`, `email.delivered`, `email.bounced`, `email.complained`, `email.failed` | `{NEXT_PUBLIC_APP_URL}/api/webhooks/integrations/resend/events` |
+
+Svix verification and payload handling live in `server/integrations/resend/webhooks.ts`; the route dispatches via `server/integrations/webhook-dispatch.ts`.
+
 ### Environment variables
 
 ```env
 RESEND_API_KEY=re_...
 RESEND_INBOUND_WEBHOOK_SECRET=whsec_...
+# Optional separate signing secret for delivery events (defaults to inbound secret)
+# RESEND_EVENTS_WEBHOOK_SECRET=whsec_...
 SUPPORT_EMAIL=support@yourdomain.com
 SUPPORT_FROM_NAME=Support
 ```
@@ -148,7 +158,7 @@ Async email work uses Next.js [`after()`](https://nextjs.org/docs/app/api-refere
 | Work | Trigger | Purpose |
 |------|---------|---------|
 | Inbound parse + ticket create | Resend webhook → `enqueueInboundEmail()` | Fetch body, match thread, persist message |
-| Outbound reply | Public message created | Send via Resend adapter |
+| Outbound reply | Public message created | Send via Resend integration |
 | Stale ticket digest | Cron (daily) | Optional; not implemented |
 | Cleanup attachments | Cron (weekly) | Optional; not implemented |
 
@@ -157,23 +167,11 @@ Async email work uses Next.js [`after()`](https://nextjs.org/docs/app/api-refere
 - Inbound parsing can be slow (attachments, storage upload) — respond to webhook quickly
 - Outbound send shouldn't block the API response
 - Vercel Fluid Compute extends function lifetime for background work
-- DB dedupe (`resend_inbound_id`, `email_message_id`) prevents duplicate messages on webhook retries
+- DB dedupe (`message_external_refs`, `email_message_id`) prevents duplicate messages on webhook retries
 
 ### Implementation
 
-```typescript
-// server/adapters/email/background.ts
-import { after } from "next/server"
-import { resendAdapter } from "@server/adapters/email/resend"
-import { processInboundEmail } from "@server/services/email-inbound"
-
-export function enqueueInboundEmail(raw: InboundWebhookPayload) {
-  after(async () => {
-    const parsed = await resendAdapter.resolveInbound(raw)
-    await processInboundEmail(parsed)
-  })
-}
-```
+Resend webhook handlers verify and normalize provider payloads inside `server/integrations/resend/`, then enqueue normalized `ParsedEmail` / `EmailDeliveryEvent` payloads for the email channel. The channel owns email semantics; provider IDs travel as generic `providerRef` metadata for dedupe and delivery lookup.
 
 Phase 5 scheduled jobs can use Vercel Cron or Supabase pg_cron when needed.
 
@@ -278,6 +276,41 @@ curl https://instance.com/api/v1/tickets/:id/context \
 
 Future: MCP server or `@ticqex/agent` SDK (post-v1).
 
+## OSS configuration (channels and integrations)
+
+Open-source installs configure **activation** in JSON and **secrets** in `.env.local`. There is no hosted control plane in this repo.
+
+| File | Committed | Purpose |
+|------|-----------|---------|
+| `config/ticqex.config.example.json` | Yes | Example active channels and integration bindings |
+| `config/ticqex.config.json` | No (gitignored) | Local activation choices |
+| `.env.local` | No | Supabase keys, Resend credentials, support sender |
+
+Interactive setup:
+
+```bash
+pnpm ticqex init
+```
+
+Manual flow:
+
+```bash
+cp config/ticqex.config.example.json config/ticqex.config.json
+pnpm db:start && pnpm db:env
+pnpm config:sync    # validate activation + dry-run field policy sync
+pnpm config:check   # validate bindings + required env vars
+```
+
+Folder layout (compiled TypeScript registries, not runtime plugins):
+
+```text
+config/ticqex.config.json     # operator activation
+server/channels/email/        # product behavior
+server/integrations/resend/   # provider webhooks + API
+```
+
+Email send/receive now goes through `server/channels/email/*` and `server/integrations/resend/*`; webhook entrypoints use the generic route under `src/app/api/webhooks/integrations/`.
+
 ## Environment variables (complete)
 
 ```env
@@ -299,13 +332,15 @@ SUPPORT_FROM_NAME=Support
 NEXT_PUBLIC_APP_URL=https://your-instance.com
 ```
 
-## Adapter swap guide
+## Integration swap guide
 
-| Integration | Interface location | v1 impl | To swap |
+| Integration | Contract location | v1 impl | To swap |
 |-------------|-------------------|---------|---------|
-| Email | `/server/adapters/email/types.ts` | `resend.ts` | Implement interface, change env var |
+| Email provider | `server/channels/email/types.ts` + `server/integrations/types.ts` | `server/integrations/resend` | Add a compiled provider folder and bind it in `config/ticqex.config.json` |
 | Database | Direct Supabase client in services | Supabase | Phase 6+ if needed |
-| Job queue | Next.js `after()` on Vercel | `background.ts` | Would need external runner if moving off Vercel |
+| Job queue | Next.js `after()` on Vercel | `server/channels/email/background.ts` | Would need external runner if moving off Vercel |
 | Realtime | Supabase Realtime | Supabase | Would need WebSocket server |
 
-Email is the only adapter designed for swapping in v1. Everything else is Supabase-native by design.
+Email provider integrations are the first swappable integration surface. Everything else is Supabase-native by design.
+
+For a repo-specific hypothetical walkthrough of adding another email provider, see [SENDGRID-INTEGRATION-GUIDE.md](./SENDGRID-INTEGRATION-GUIDE.md). That guide does not mean SendGrid is implemented; it documents the expected shape of a future compiled provider integration.

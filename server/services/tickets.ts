@@ -1,3 +1,4 @@
+import { buildTicketCardSurface } from "@server/channels";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { parsePagination } from "@server/lib/utils";
@@ -105,6 +106,12 @@ function formatTicketListItem(
   fieldsMap: Map<string, Record<string, unknown>>,
   tagsMap: Map<string, { id: string; name: string; color: string }[]>,
 ) {
+  const custom_fields = fieldsMap.get(t.id) ?? {};
+  const preview =
+    t.kind === "task" && t.body?.trim()
+      ? t.body.trim().replace(/\s+/g, " ").slice(0, 120)
+      : "";
+
   return {
     id: t.id,
     title: t.title,
@@ -125,8 +132,15 @@ function formatTicketListItem(
       ? { id: t.users.id, username: t.users.username }
       : null,
     status: t.status_types,
-    custom_fields: fieldsMap.get(t.id) ?? {},
+    custom_fields,
     tags: tagsMap.get(t.id) ?? [],
+    card_surface: buildTicketCardSurface({
+      kind: t.kind,
+      channel: t.channel ?? null,
+      contact_address: t.contact_address ?? null,
+      custom_fields,
+      preview,
+    }),
   };
 }
 
@@ -239,6 +253,7 @@ export async function getTicketForContext(id: string) {
 }
 
 export async function createTicket(input: CreateTicketInput, _auth: AuthContext) {
+  void _auth;
   const db = createAdminClient();
   const statusId =
     input.status_id?.trim() || (await getDefaultStatusId());

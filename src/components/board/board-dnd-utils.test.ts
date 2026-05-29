@@ -19,6 +19,12 @@ function ticket(id: string): BoardTicket {
     assignee: null,
     custom_fields: {},
     tags: [],
+    card_surface: {
+      badges: [],
+      warning_badges: [],
+      preview: "",
+      chips: [],
+    },
     created_at: "",
     updated_at: "",
     unread_count: 0,

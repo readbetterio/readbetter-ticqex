@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -38,16 +38,25 @@ export function EmailThreadOrderSetting() {
   const [order, setOrder] = useState<EmailThreadOrder | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    const settings = await apiFetch<{ email_thread_order?: EmailThreadOrder }>(
-      "/api/v1/settings",
-    );
-    setOrder(settings.email_thread_order ?? "oldest_first");
-  }, []);
-
   useEffect(() => {
-    void load().catch(() => setOrder("oldest_first"));
-  }, [load]);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      void apiFetch<{ email_thread_order?: EmailThreadOrder }>("/api/v1/settings")
+        .then((settings) => {
+          if (!cancelled) {
+            setOrder(settings.email_thread_order ?? "oldest_first");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setOrder("oldest_first");
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!order) {
     return <Skeleton className="h-9 w-full max-w-md" />;

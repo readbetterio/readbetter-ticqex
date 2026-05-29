@@ -5,11 +5,6 @@ ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_cc text[] NOT NULL DE
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_subject text;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_body_html text;
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS email_delivery_status text;
-ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS resend_outbound_id text;
-
-CREATE INDEX IF NOT EXISTS messages_resend_outbound_id_idx
-  ON public.messages (resend_outbound_id)
-  WHERE resend_outbound_id IS NOT NULL;
 
 -- global_settings: agent signature appended to outbound replies
 ALTER TABLE public.global_settings ADD COLUMN IF NOT EXISTS email_signature text NOT NULL DEFAULT '';

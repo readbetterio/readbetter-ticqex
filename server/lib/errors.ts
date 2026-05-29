@@ -4,6 +4,7 @@ export type ApiErrorCode =
   | "forbidden"
   | "not_found"
   | "conflict"
+  | "service_unavailable"
   | "internal";
 
 export class ApiError extends Error {
@@ -34,6 +35,10 @@ export class ApiError extends Error {
 
   static conflict(message: string) {
     return new ApiError("conflict", message, 409);
+  }
+
+  static serviceUnavailable(message: string) {
+    return new ApiError("service_unavailable", message, 503);
   }
 
   static internal(message = "Internal server error") {

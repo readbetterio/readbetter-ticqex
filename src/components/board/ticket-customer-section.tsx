@@ -94,43 +94,64 @@ export function TicketCustomerSection({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDetail(null);
-    setDefinitions([]);
-    setError(null);
-    setShowAllFields(false);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setDetail(null);
+      setDefinitions([]);
+      setError(null);
+      setShowAllFields(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [customerId]);
 
   useEffect(() => {
-    if (!expanded) {
-      setShowAllFields(false);
-    }
+    if (expanded) return;
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setShowAllFields(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [expanded]);
 
   useEffect(() => {
     if (!expanded) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
 
-    void Promise.all([
-      apiFetch<CustomerDetail>(`/api/v1/customers/${customerId}`),
-      apiFetch<CustomFieldDefinition[]>("/api/v1/custom-fields?group=customer"),
-    ])
-      .then(([customer, fields]) => {
-        if (!cancelled) {
-          setDetail(customer);
-          setDefinitions(fields);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load customer");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      void Promise.all([
+        apiFetch<CustomerDetail>(`/api/v1/customers/${customerId}`),
+        apiFetch<CustomFieldDefinition[]>("/api/v1/custom-fields?group=customer"),
+      ])
+        .then(([customer, fields]) => {
+          if (!cancelled) {
+            setDetail(customer);
+            setDefinitions(fields);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) {
+            setError(e instanceof Error ? e.message : "Failed to load customer");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    });
 
     return () => {
       cancelled = true;

@@ -65,7 +65,7 @@ Exception: **Supabase Realtime** subscriptions in the admin UI for live Kanban u
 
 - **Next.js** on Vercel — Route Handlers as the API surface; `after()` for async email
 - **Supabase** — Postgres, Auth, RLS, Realtime, Storage (all-in; no abstraction layer for v1)
-- **Resend** — email provider behind a swappable adapter interface
+- **Resend** — email provider behind the channel/integration registry
 
 Business logic lives in a **service layer** (`/server` or `/lib`) so the API can be extracted to a standalone service later without a rewrite.
 
@@ -75,7 +75,7 @@ Inspired by [Chatwoot](https://github.com/chatwoot/chatwoot) (MIT core + enterpr
 
 | Layer | License | Location |
 |-------|---------|----------|
-| **Core** | MIT | Root repo — API, admin UI, schema, email adapter |
+| **Core** | MIT | Root repo — API, admin UI, schema, channels, integrations |
 | **Enterprise / Cloud** | Separate license (TBD) | `/enterprise` directory or separate repo |
 
 **Core (MIT) includes everything needed to self-host a fully functional support desk:**

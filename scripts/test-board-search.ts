@@ -147,7 +147,6 @@ async function main() {
   if (!needleSearch.search_active) {
     throw new Error("Expected search_active=true");
   }
-  const needleIds = boardTicketIds(needleSearch);
   const needleMatch = needleSearch.lanes
     .flatMap((lane) => lane.tickets)
     .find((t) => t.title === NEEDLE_TITLE);

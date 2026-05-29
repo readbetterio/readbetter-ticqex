@@ -19,6 +19,7 @@ type TicketSummaryBase = {
   contact_address: string | null;
   status_id: string;
   status: { id: string; name: string; color: string } | null;
+  card_surface?: import("@shared/channels").TicketCardSurface;
 };
 
 export type TaskTicketSummary = TicketSummaryBase & {

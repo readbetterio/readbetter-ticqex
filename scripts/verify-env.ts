@@ -16,7 +16,7 @@ requireEnv("SUPABASE_SECRET_KEY", "pnpm db:env");
 requireEnv("RESEND_API_KEY", "Cursor Cloud secrets or .env.local");
 requireEnv("RESEND_INBOUND_WEBHOOK_SECRET", "Cursor Cloud secrets or Resend webhook signing secret");
 requireEnv("SUPPORT_EMAIL", "Cursor Cloud secrets or .env.local");
-requireEnv("NEXT_PUBLIC_APP_URL", "https://readbetter.rbouschery.de when tunnel is up");
+requireEnv("NEXT_PUBLIC_APP_URL", "https://support.example.com when tunnel is up");
 
 const optional = ["CLOUDFLARE_TUNNEL_TOKEN"] as const;
 for (const key of optional) {

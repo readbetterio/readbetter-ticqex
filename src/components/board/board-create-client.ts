@@ -1,3 +1,4 @@
+import { buildTicketCardSurface } from "@shared/channels";
 import { sortBoardTickets, type BoardSort } from "@shared/board-sort";
 import {
   ticketMatchesFilter,
@@ -5,7 +6,11 @@ import {
   type TicketFilterMatchTicket,
 } from "@shared/ticket-filter";
 import type { Tag } from "@/components/tags/types";
-import type { BoardLane, BoardTicket, TicketDetail } from "./types";
+import type {
+  BoardLane,
+  BoardTicket,
+  TicketDetail,
+} from "./types";
 
 export type CreateTicketPayload = {
   title: string;
@@ -28,6 +33,24 @@ function bodyPreview(body: string, maxLen = 120): string {
   return `${oneLine.slice(0, maxLen - 1)}…`;
 }
 
+function buildCardSurfaceForTicket(
+  detail: Pick<
+    TicketDetail,
+    "kind" | "channel" | "contact_address" | "custom_fields" | "card_surface"
+  >,
+  preview: string,
+) {
+  if (detail.card_surface) return detail.card_surface;
+
+  return buildTicketCardSurface({
+    kind: detail.kind,
+    channel: detail.kind === "conversation" ? detail.channel : null,
+    contact_address: detail.contact_address ?? null,
+    custom_fields: detail.custom_fields,
+    preview,
+  });
+}
+
 export function buildOptimisticBoardTicket(
   payload: CreateTicketPayload,
   tempId: string,
@@ -35,6 +58,7 @@ export function buildOptimisticBoardTicket(
 ): BoardTicket {
   const body = payload.body?.trim() ?? "";
   const customerUsername = payload.customerUsername?.trim();
+  const preview = body ? bodyPreview(body) : "";
 
   return {
     id: tempId,
@@ -44,7 +68,7 @@ export function buildOptimisticBoardTicket(
     origin: "manual",
     customer_id: null,
     assignee_id: null,
-    preview: body ? bodyPreview(body) : "",
+    preview,
     customer: customerUsername
       ? { username: customerUsername, initials: initials(customerUsername) }
       : null,
@@ -55,6 +79,13 @@ export function buildOptimisticBoardTicket(
       name: tag.name,
       color: tag.color,
     })),
+    card_surface: buildTicketCardSurface({
+      kind: "task",
+      channel: null,
+      contact_address: null,
+      custom_fields: {},
+      preview,
+    }),
     created_at: now,
     updated_at: now,
     unread_count: 0,
@@ -63,13 +94,16 @@ export function buildOptimisticBoardTicket(
 
 export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
   const body = detail.body ?? "";
+  const preview = body ? bodyPreview(body) : "";
+  const card_surface = buildCardSurfaceForTicket(detail, preview);
+
   const base = {
     id: detail.id,
     title: detail.title,
     origin: detail.origin,
     customer_id: detail.customer_id,
     assignee_id: detail.assignee_id,
-    preview: body ? bodyPreview(body) : "",
+    preview,
     customer: detail.customer
       ? {
           username: detail.customer.username,
@@ -88,6 +122,7 @@ export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
       name: tag.name,
       color: tag.color,
     })),
+    card_surface,
     created_at: detail.created_at,
     updated_at: detail.updated_at,
     unread_count: "unread_count" in detail ? (detail.unread_count ?? 0) : 0,

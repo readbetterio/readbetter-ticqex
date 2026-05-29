@@ -14,6 +14,9 @@
     "db:env": "tsx scripts/sync-supabase-env.ts",
     "env:verify": "tsx --env-file=.env.local scripts/verify-env.ts",
     "db:seed-admin": "tsx --env-file=.env.local scripts/seed.ts",
+    "ticqex": "tsx scripts/ticqex.ts",
+    "config:check": "tsx --env-file=.env.local scripts/config-check.ts",
+    "config:sync": "tsx --env-file=.env.local scripts/config-sync.ts",
     "supabase": "supabase",
     "test:message-reads": "tsx --env-file=.env.local scripts/test-message-reads.ts",
     "test:board-filter": "tsx --env-file=.env.local scripts/test-board-filter.ts",
@@ -21,7 +24,8 @@
     "seed:board-load": "tsx --env-file=.env.local scripts/seed-board-load.ts",
     "test:board-sort": "tsx --env-file=.env.local scripts/test-board-sort.ts",
     "test:board-dnd": "tsx src/components/board/board-dnd-utils.test.ts",
-    "test:merge-lane-order": "tsx shared/board-sort/merge-lane-order.test.ts"
+    "test:merge-lane-order": "tsx shared/board-sort/merge-lane-order.test.ts",
+    "test:channel-integration-registry": "tsx scripts/test-channel-integration-registry.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,3 +1,4 @@
+import { buildTicketCardSurface } from "@server/channels";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { initials, messagePreview } from "@server/lib/utils";
 import type { BoardTicketRow } from "@server/domain/ticket";
@@ -56,6 +57,15 @@ export async function enrichTicketsForBoard(
       ? { username: t.users.username, initials: initials(t.users.username) }
       : null;
 
+    const preview = previews.get(t.id) ?? "";
+    const card_surface = buildTicketCardSurface({
+      kind: t.kind,
+      channel: t.channel ?? null,
+      contact_address: t.contact_address ?? null,
+      custom_fields,
+      preview,
+    });
+
     return {
       id: t.id,
       title: t.title,
@@ -64,11 +74,12 @@ export async function enrichTicketsForBoard(
       origin: t.origin,
       customer_id: t.customer_id,
       assignee_id: t.assignee_id,
-      preview: previews.get(t.id) ?? "",
+      preview,
       customer,
       assignee,
       custom_fields,
       tags,
+      card_surface,
       created_at: t.created_at,
       updated_at: t.updated_at,
       unread_count: unreadCounts.get(t.id) ?? 0,

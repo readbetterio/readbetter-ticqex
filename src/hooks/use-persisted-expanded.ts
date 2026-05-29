@@ -33,26 +33,36 @@ function writeExpanded(prefix: string, userEmail: string, expanded: boolean) {
 
 export function usePersistedExpanded(prefix: string, defaultExpanded: boolean) {
   const { user, loading } = useCurrentUser();
+  const userEmail = user?.email ?? null;
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     if (loading) return;
-    if (user?.email) {
-      setExpanded(readExpanded(prefix, user.email, defaultExpanded));
-    } else {
-      setExpanded(defaultExpanded);
-    }
-    setHydrated(true);
-  }, [loading, user?.email, prefix, defaultExpanded]);
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setExpanded(
+        userEmail
+          ? readExpanded(prefix, userEmail, defaultExpanded)
+          : defaultExpanded,
+      );
+      setHydrated(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, userEmail, prefix, defaultExpanded]);
 
   const toggleExpanded = useCallback(() => {
     setExpanded((prev) => {
       const next = !prev;
-      if (user?.email) writeExpanded(prefix, user.email, next);
+      if (userEmail) writeExpanded(prefix, userEmail, next);
       return next;
     });
-  }, [prefix, user?.email]);
+  }, [prefix, userEmail]);
 
   return { expanded, toggleExpanded, hydrated };
 }

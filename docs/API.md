@@ -343,8 +343,8 @@ URL prefix `/api/v1/`. Breaking changes → `/api/v2/`. Non-breaking additions (
 /app/api/v1/tickets/route.ts     ← Route Handler (thin)
 /server/services/tickets.ts      ← Business logic
 /server/services/customers.ts
-/server/adapters/email/resend.ts ← Swappable adapter
-/server/adapters/db/supabase.ts  ← DB client (service role)
+/server/channels/email/          ← Email channel behavior
+/server/integrations/resend/     ← Resend provider integration
 /server/middleware/auth.ts       ← JWT + API key validation
 ```
 

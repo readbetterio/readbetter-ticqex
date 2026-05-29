@@ -1,3 +1,7 @@
+import {
+  findMessageByExternalRef,
+  insertMessageExternalRef,
+} from "@server/services/message-external-refs";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { normalizeEmailSubject, normalizeMessageId } from "@server/lib/utils";
@@ -10,7 +14,14 @@ import {
   findTicketBySubjectAndContact,
 } from "@server/services/email-threading";
 import { persistMessageAttachment } from "@server/services/attachment-uploads";
-import type { ParsedEmail } from "@server/adapters/email/types";
+import type { ParsedEmail } from "@shared/channels/email/transport";
+import { assertChannelFields } from "@server/channels/field-enforcement";
+
+function inboundProviderRef(parsed: ParsedEmail) {
+  return parsed.providerRef?.direction === "inbound"
+    ? parsed.providerRef
+    : null;
+}
 
 function isSyntheticMessageId(messageId: string) {
   return messageId.endsWith("@inbound>");
@@ -25,14 +36,17 @@ function formatInboundFrom(parsed: ParsedEmail): string {
 
 async function findExistingInboundMessage(parsed: ParsedEmail) {
   const db = createAdminClient();
+  const providerRef = inboundProviderRef(parsed);
 
-  if (parsed.resendEmailId) {
-    const { data } = await db
-      .from("messages")
-      .select("id, ticket_id")
-      .eq("resend_inbound_id", parsed.resendEmailId)
-      .maybeSingle();
-    if (data) return data;
+  if (providerRef) {
+    const byRef = await findMessageByExternalRef({
+      provider: providerRef.provider,
+      integrationKey: providerRef.integrationKey,
+      direction: providerRef.direction,
+      refType: providerRef.refType,
+      externalId: providerRef.externalId,
+    });
+    if (byRef) return byRef;
   }
 
   if (parsed.messageId && !isSyntheticMessageId(parsed.messageId)) {
@@ -74,6 +88,7 @@ async function storeAttachments(
 
 export async function processInboundEmail(parsed: ParsedEmail) {
   const db = createAdminClient();
+  const providerRef = inboundProviderRef(parsed);
 
   const existing = await findExistingInboundMessage(parsed);
   if (existing) {
@@ -104,6 +119,12 @@ export async function processInboundEmail(parsed: ParsedEmail) {
     isNew = true;
     const statusId = await getInboundEmailStatusId();
     const contactAddress = parsed.from.trim().toLowerCase();
+
+    assertChannelFields("email", "on_create", {
+      contact_address: contactAddress,
+      custom_fields: {},
+    });
+
     const { data: ticket, error } = await db
       .from("tickets")
       .insert({
@@ -139,8 +160,19 @@ export async function processInboundEmail(parsed: ParsedEmail) {
     emailCc: parsed.cc,
     emailSubject: parsed.subject,
     emailBodyHtml: parsed.bodyHtml ?? null,
-    resendInboundId: parsed.resendEmailId ?? null,
   });
+
+  if (providerRef) {
+    await insertMessageExternalRef({
+      messageId: message.id,
+      provider: providerRef.provider,
+      integrationKey: providerRef.integrationKey,
+      direction: providerRef.direction,
+      refType: providerRef.refType,
+      externalId: providerRef.externalId,
+      metadata: providerRef.metadata,
+    });
+  }
 
   await storeAttachments(ticketId, message.id, parsed.attachments);
 

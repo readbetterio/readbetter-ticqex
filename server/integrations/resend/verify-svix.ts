@@ -1,6 +1,13 @@
 import { Resend } from "resend";
 
-const webhookClient = new Resend("");
+let webhookClient: Resend | null = null;
+
+function getWebhookClient(): Resend {
+  if (!webhookClient) {
+    webhookClient = new Resend(process.env.RESEND_API_KEY ?? "re_test");
+  }
+  return webhookClient;
+}
 
 export function verifySvixWebhook(
   payload: string,
@@ -15,7 +22,7 @@ export function verifySvixWebhook(
   if (!id || !timestamp || !signature) return false;
 
   try {
-    webhookClient.webhooks.verify({
+    getWebhookClient().webhooks.verify({
       payload,
       headers: { id, timestamp, signature },
       webhookSecret,

@@ -6,7 +6,9 @@ import {
   createAgentReply,
   listEnrichedMessages,
 } from "@server/services/messages";
-import { enqueueOutboundEmail } from "@server/adapters/email/background";
+import { enqueueChannelOutbound } from "@server/channels/email/background";
+import { isChannelOperational } from "@server/config/channel-gate";
+import { ApiError } from "@server/lib/errors";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,7 +34,12 @@ export async function POST(request: NextRequest, { params }: Params) {
     );
 
     if (shouldSendEmail) {
-      enqueueOutboundEmail(message.id);
+      if (!isChannelOperational("email")) {
+        throw ApiError.serviceUnavailable(
+          "Email channel is disabled or integration is not configured",
+        );
+      }
+      enqueueChannelOutbound("email", message.id);
     }
 
     return jsonData(message, 201);

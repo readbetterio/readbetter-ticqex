@@ -15,6 +15,7 @@ out/
 .env
 .env*.local
 !.env.example
+config/ticqex.config.json
 
 # debug
 npm-debug.log*

@@ -20,25 +20,44 @@ Spec and planning docs live in [`docs/`](./docs/README.md).
 
 ```bash
 pnpm install
-cp .env.example .env.local
 ```
 
-### 2. Local Supabase
+### 2. Interactive setup
 
-Start the stack, sync API keys into `.env.local`, apply migrations, and bootstrap required app data:
+Use the repo-local CLI to configure Supabase setup and choose active channels/integrations:
+
+```bash
+pnpm ticqex init
+```
+
+For local development, choose `local` and then `start`, `reset`, or `skip`. If local Supabase has already been initialized, you can run:
+
+```bash
+pnpm ticqex init --supabase skip
+```
+
+For Supabase Cloud, run:
+
+```bash
+pnpm ticqex init --supabase cloud
+```
+
+The cloud flow links the project and can push migrations, but it does not fetch or write cloud keys. It prints the Supabase env vars you need to set in `.env.local` or deployment settings.
+
+The CLI writes `.env.local` and `config/ticqex.config.json` (ignored by git). The committed example is `config/ticqex.config.example.json`.
+
+After init, `pnpm config:sync` validates activation and reports planned channel field policies (database upsert comes in a later slice). Use `pnpm config:check` to verify channel/integration bindings and required env vars.
+
+Manual equivalents:
 
 ```bash
 pnpm db:start
 pnpm db:env          # writes NEXT_PUBLIC_SUPABASE_* and SUPABASE_SECRET_KEY
 pnpm db:bootstrap    # status columns + global_settings (empty board; no admin user)
+pnpm db:seed-admin   # optional admin@ticqex.local
 ```
 
-Optional:
-
-```bash
-pnpm db:seed-admin   # admin@ticqex.local (password from .env.local)
-pnpm db:reset        # migrations + bootstrap + demo tickets (wipes local DB)
-```
+Optional: `pnpm db:reset` applies migrations and seed data, but wipes the local DB.
 
 `pnpm db:env` reads publishable and secret keys from `supabase status -o json` (`PUBLISHABLE_KEY` / `SECRET_KEY`).
 
@@ -65,15 +84,18 @@ Async email processing uses Next.js `after()` — no external job runner require
 ### Cloud Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. `pnpm supabase link --project-ref <ref>`
-3. `pnpm supabase db push`
-4. Set cloud URL, publishable key, and secret key in `.env.local`, then `pnpm db:seed-admin`.
+2. `pnpm ticqex init --supabase cloud`
+3. Choose whether to push migrations to the linked project.
+4. Set cloud URL, publishable key, and secret key in `.env.local` or deployment settings.
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Next.js dev server (UI, API, background email) |
+| `pnpm ticqex init` | Interactive setup for local Supabase, env vars, channels, and integrations |
+| `pnpm config:check` | Validate `config/ticqex.config.json` bindings and required env vars |
+| `pnpm config:sync` | Validate activation JSON and print planned channel field sync (dry-run) |
 | `pnpm env:verify` | Check required env vars are set |
 | `pnpm db:start` / `db:stop` / `db:reset` | Local Supabase |
 | `pnpm db:bootstrap` | Required statuses + settings (empty board) |
@@ -86,7 +108,11 @@ Async email processing uses Next.js `after()` — no external job runner require
 |------|---------|
 | `src/app/` | Next.js App Router (admin UI, API routes) |
 | `server/services/` | Business logic (Phase 1+) |
-| `server/adapters/` | External integrations (email in Phase 3) |
+| `server/channels/` | Product channel behavior (email, future chat channels) |
+| `server/integrations/` | External provider integrations (Resend) |
+| `server/channels/` | Channel definitions (email) and product behavior contracts |
+| `server/integrations/` | Provider integrations (Resend) and env-backed runtime |
+| `config/` | OSS activation config (`ticqex.config.example.json` → local `ticqex.config.json`) |
 | `supabase/migrations/` | Database schema |
 | `enterprise/` | Commercial / hosted features (open-core boundary) |
 

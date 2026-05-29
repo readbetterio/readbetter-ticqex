@@ -35,6 +35,12 @@ type Settings = {
   show_assignee_on_ticket: boolean;
   show_body_on_ticket: boolean;
   email_signature?: string;
+  channels?: {
+    email?: {
+      enabled: boolean;
+      integration: string | null;
+    };
+  };
 };
 type ApiKey = {
   id: string;
@@ -130,6 +136,8 @@ export function SettingsPanel() {
     );
   }
 
+  const emailEnabled = settings?.channels?.email?.enabled === true;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       <div>
@@ -147,7 +155,7 @@ export function SettingsPanel() {
 
       <ThemeSetting />
 
-      <EmailThreadOrderSetting />
+      {emailEnabled && <EmailThreadOrderSetting />}
 
       <Card>
         <CardHeader>
@@ -162,18 +170,20 @@ export function SettingsPanel() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>New inbound emails</CardTitle>
-          <CardDescription>
-            Status assigned when an email creates a new ticket. Defaults to the
-            first board column in order.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InboundEmailStatusSetting />
-        </CardContent>
-      </Card>
+      {emailEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>New inbound emails</CardTitle>
+            <CardDescription>
+              Status assigned when an email creates a new ticket. Defaults to the
+              first board column in order.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <InboundEmailStatusSetting />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -204,7 +214,7 @@ export function SettingsPanel() {
         </CardContent>
       </Card>
 
-      {settings && (
+      {settings && emailEnabled && (
         <Card>
           <CardHeader>
             <CardTitle>Email signature</CardTitle>
@@ -222,7 +232,7 @@ export function SettingsPanel() {
         </Card>
       )}
 
-      {me.role === "admin" && (
+      {me.role === "admin" && emailEnabled && (
         <Card>
           <CardHeader>
             <CardTitle>Email snippets</CardTitle>

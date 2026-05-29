@@ -167,8 +167,14 @@ export function TicketModal({
   }, [summary, ticketId, queryClient, onBoardChange]);
 
   useEffect(() => {
+    let cancelled = false;
     optimisticStatusRef.current = null;
-    setOptimisticStatusId(null);
+    queueMicrotask(() => {
+      if (!cancelled) setOptimisticStatusId(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [ticketId]);
 
   useEffect(() => {

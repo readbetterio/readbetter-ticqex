@@ -1,5 +1,12 @@
 import type { TicketChannel } from "@/types/database";
 
+export type {
+  TicketCardBadge,
+  TicketCardBadgeVariant,
+  TicketCardChip,
+  TicketCardSurface,
+} from "@shared/channels";
+
 export type BoardLane = {
   status: { id: string; name: string; color: string };
   tickets: BoardTicket[];
@@ -18,6 +25,7 @@ type BoardTicketBase = {
   assignee: { username: string; initials: string } | null;
   custom_fields: Record<string, unknown>;
   tags: { id: string; name: string; color: string }[];
+  card_surface: import("@shared/channels").TicketCardSurface;
   created_at: string;
   updated_at: string;
   unread_count: number;
