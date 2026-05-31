@@ -81,14 +81,14 @@ function headerValue(
   return undefined;
 }
 
+/** Inline base64 content (outbound / legacy). Resend inbound metadata has no `content`. */
 function parseAttachments(
   rawAttachments: unknown,
 ): ParsedEmail["attachments"] {
   const attachments: ParsedEmail["attachments"] = [];
   for (const att of (rawAttachments ?? []) as Array<Record<string, unknown>>) {
-    const content = att.content
-      ? Buffer.from(String(att.content), "base64")
-      : Buffer.alloc(0);
+    if (!att.content) continue;
+    const content = Buffer.from(String(att.content), "base64");
     attachments.push({
       filename: String(att.filename ?? "attachment"),
       contentType: String(
@@ -98,6 +98,55 @@ function parseAttachments(
       sizeBytes: content.length,
     });
   }
+  return attachments;
+}
+
+async function downloadResendInboundAttachments(
+  emailId: string,
+  resend: Resend,
+): Promise<ParsedEmail["attachments"]> {
+  const { data: listResult, error } =
+    await resend.emails.receiving.attachments.list({ emailId });
+  if (error) {
+    console.error(
+      "Failed to list received email attachments:",
+      error.message,
+      emailId,
+    );
+    return [];
+  }
+
+  const attachments: ParsedEmail["attachments"] = [];
+  for (const att of listResult?.data ?? []) {
+    if (!att.download_url) continue;
+
+    try {
+      const response = await fetch(att.download_url);
+      if (!response.ok) {
+        console.error(
+          `Failed to download attachment ${att.filename ?? att.id}:`,
+          response.status,
+          emailId,
+        );
+        continue;
+      }
+
+      const content = Buffer.from(await response.arrayBuffer());
+      attachments.push({
+        filename: att.filename ?? "attachment",
+        contentType: att.content_type ?? "application/octet-stream",
+        sizeBytes: att.size ?? content.length,
+        content,
+      });
+    } catch (err) {
+      console.error(
+        `Failed to download attachment ${att.filename ?? att.id}:`,
+        err instanceof Error ? err.message : err,
+        emailId,
+      );
+    }
+  }
+
   return attachments;
 }
 
@@ -282,8 +331,6 @@ export async function resolveResendInbound(
       : parsed.messageId,
     inReplyTo,
     references,
-    attachments: received.attachments?.length
-      ? parseAttachments(received.attachments)
-      : parsed.attachments,
+    attachments: await downloadResendInboundAttachments(emailId, resend),
   };
 }
