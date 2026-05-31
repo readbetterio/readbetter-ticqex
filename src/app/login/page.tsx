@@ -1,8 +1,9 @@
 "use client";
 
+import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useActionState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Suspense, useActionState, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,11 +20,27 @@ import { login, type LoginState } from "./actions";
 function LoginForm() {
   const searchParams = useSearchParams();
   const authError = searchParams.get("error") === "auth";
+  const [showPassword, setShowPassword] = useState(false);
 
   const [state, formAction, pending] = useActionState<LoginState, FormData>(
     login,
-    authError ? { error: "Sign-in failed. Please try again." } : {},
+    {},
   );
+
+  useEffect(() => {
+    if (authError) {
+      toast.error("Sign-in failed", {
+        description:
+          "Your session could not be restored. Please sign in again.",
+      });
+    }
+  }, [authError]);
+
+  useEffect(() => {
+    if (state.error) {
+      toast.error("Could not sign in", { description: state.error });
+    }
+  }, [state.error]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -39,20 +56,32 @@ function LoginForm() {
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          name="password"
-          required
-          autoComplete="current-password"
-        />
+        <div className="relative">
+          <Input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            name="password"
+            required
+            autoComplete="current-password"
+            className="pr-9"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-1/2 right-0.5 -translate-y-1/2 text-muted-foreground"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? (
+              <EyeSlashIcon className="size-4" aria-hidden />
+            ) : (
+              <EyeIcon className="size-4" aria-hidden />
+            )}
+          </Button>
+        </div>
       </div>
-
-      {state.error && (
-        <Alert variant="destructive">
-          <AlertDescription>{state.error}</AlertDescription>
-        </Alert>
-      )}
 
       <Button type="submit" className="w-full" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
