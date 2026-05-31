@@ -35,14 +35,14 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       className={cn(
-        "h-full antialiased font-sans",
+        "h-full overflow-hidden antialiased font-sans",
         geistSans.variable,
         geistMono.variable,
         sourceSans3.variable,
         instrumentSansHeading.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="flex h-full flex-col overflow-hidden">
         <QueryProvider>
           <ThemeProvider
             attribute="class"

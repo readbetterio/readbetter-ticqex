@@ -16,8 +16,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-svh flex-col overflow-y-auto bg-background [scrollbar-gutter:stable]">
-      <header className="sticky top-0 z-10 shrink-0 border-b border-border bg-card">
+    <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">
+      <header className="z-10 shrink-0 border-b border-border bg-card">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-4">
           <div className="flex items-center gap-6">
             <Link
@@ -47,7 +47,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <UserMenu />
         </div>
       </header>
-      <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+        {children}
+      </main>
     </div>
   );
 }
