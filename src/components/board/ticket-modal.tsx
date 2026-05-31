@@ -496,6 +496,7 @@ export function TicketModal({
               type="button"
               variant="ghost"
               size="sm"
+              className="hidden sm:inline-flex"
               onClick={() => void copyContext()}
             >
               <CopyIcon />
@@ -514,6 +515,13 @@ export function TicketModal({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuItem
+                  className="sm:hidden"
+                  onClick={() => void copyContext()}
+                >
+                  <CopyIcon />
+                  Copy context
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   variant="destructive"
                   onClick={openDeleteDialog}
