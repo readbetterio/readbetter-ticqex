@@ -38,7 +38,7 @@ pnpm ticqex init --supabase cloud
 
 The cloud flow links the project and can push migrations, but it does not fetch or write cloud keys. It prints the Supabase env vars you need to set in `.env.local` or deployment settings.
 
-The CLI writes `.env.local` and `config/ticqex.config.json` (ignored by git). The committed example is `config/ticqex.config.example.json`.
+The CLI writes `.env.local` (ignored by git — set the same keys in Vercel env vars for deploy) and may update `config/ticqex.config.json` (committed — edit and push to change channels/integrations on Vercel). Use `config/ticqex.config.example.json` as the template when bootstrapping a fresh clone.
 
 After init, `pnpm config:sync` validates activation and reports planned channel field policies (database upsert comes in a later slice). Use `pnpm config:check` to verify channel/integration bindings and required env vars.
 
@@ -104,7 +104,7 @@ Async email processing uses Next.js `after()` — no external job runner require
 | `server/services/` | Business logic |
 | `server/channels/` | Product channel behavior (email, future chat channels) |
 | `server/integrations/` | External provider integrations (Resend) |
-| `config/` | OSS activation config (`ticqex.config.example.json` → local `ticqex.config.json`) |
+| `config/` | OSS activation config (`ticqex.config.json` — version-controlled; `ticqex.config.example.json` is the bootstrap template) |
 | `supabase/migrations/` | Database schema |
 | `enterprise/` | Commercial / hosted features (open-core boundary) |
 

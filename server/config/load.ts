@@ -19,10 +19,7 @@ export function resolveConfigPath(configPath?: string): string {
       : path.join(projectRoot(), configPath);
   }
 
-  const localPath = resolveSharedConfigPath(projectRoot());
-  if (fs.existsSync(localPath)) return localPath;
-
-  return resolveExampleConfigPath(projectRoot());
+  return resolveSharedConfigPath(projectRoot());
 }
 
 function readAndAssertConfig(filePath: string): TicqexConfig {
@@ -41,7 +38,7 @@ export function loadTicqexConfig(configPath?: string): TicqexConfig {
     return readAndAssertConfig(resolveConfigPath(configPath));
   }
 
-  const config = loadSharedConfig(projectRoot(), { fallbackToExample: true });
+  const config = loadSharedConfig(projectRoot());
   assertConfigShape(config);
   return config;
 }

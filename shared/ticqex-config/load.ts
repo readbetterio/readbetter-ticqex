@@ -19,26 +19,17 @@ export function resolveExampleConfigPath(rootDir: string): string {
   return path.join(rootDir, "config/ticqex.config.example.json");
 }
 
-export function loadTicqexConfig(
-  rootDir: string,
-  options: { fallbackToExample?: boolean } = {},
-): TicqexConfig {
+export function loadTicqexConfig(rootDir: string): TicqexConfig {
   const configPath = resolveConfigPath(rootDir);
   const examplePath = resolveExampleConfigPath(rootDir);
-  const source =
-    fs.existsSync(configPath)
-      ? configPath
-      : options.fallbackToExample && fs.existsSync(examplePath)
-        ? examplePath
-        : configPath;
 
-  if (!fs.existsSync(source)) {
+  if (!fs.existsSync(configPath)) {
     throw new Error(
       `Missing ${path.relative(rootDir, configPath)}. Run \`pnpm ticqex init\` or copy ${path.relative(rootDir, examplePath)}.`,
     );
   }
 
-  const raw = fs.readFileSync(source, "utf8");
+  const raw = fs.readFileSync(configPath, "utf8");
   return JSON.parse(raw) as TicqexConfig;
 }
 
