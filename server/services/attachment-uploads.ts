@@ -229,14 +229,23 @@ export async function finalizeAttachmentUploads(
   }
 }
 
+/** MIME types browsers can render inline in a new tab (images, PDF). */
+export function isBrowserPreviewableContentType(contentType: string): boolean {
+  const normalized = contentType.trim().toLowerCase();
+  if (normalized.startsWith("image/")) return true;
+  if (normalized === "application/pdf") return true;
+  return false;
+}
+
 export async function getAttachmentSignedUrl(
   messageId: string,
   attachmentId: string,
+  options?: { forceDownload?: boolean },
 ) {
   const db = createAdminClient();
   const { data: attachment, error } = await db
     .from("attachments")
-    .select("id, message_id, storage_path")
+    .select("id, message_id, storage_path, filename, content_type")
     .eq("id", attachmentId)
     .maybeSingle();
   if (error) throw ApiError.internal(error.message);
@@ -244,9 +253,15 @@ export async function getAttachmentSignedUrl(
     throw ApiError.notFound("Attachment not found");
   }
 
+  const forceDownload = options?.forceDownload ?? false;
+  const signOptions =
+    forceDownload || !isBrowserPreviewableContentType(attachment.content_type)
+      ? { download: attachment.filename }
+      : undefined;
+
   const { data: signed, error: signError } = await db.storage
     .from(ATTACHMENTS_BUCKET)
-    .createSignedUrl(attachment.storage_path, 3600);
+    .createSignedUrl(attachment.storage_path, 3600, signOptions);
   if (signError || !signed?.signedUrl) {
     throw ApiError.internal(signError?.message ?? "Failed to create signed URL");
   }

@@ -8,12 +8,15 @@ type Params = { params: Promise<{ messageId: string; attachmentId: string }> };
 export async function GET(request: NextRequest, { params }: Params) {
   return withAuth(request, async () => {
     const { messageId, attachmentId } = await params;
-    const url = await getAttachmentSignedUrl(messageId, attachmentId);
+    const forceDownload = request.nextUrl.searchParams.get("download") === "true";
+    const url = await getAttachmentSignedUrl(messageId, attachmentId, {
+      forceDownload,
+    });
 
-    if (request.nextUrl.searchParams.get("redirect") === "true") {
-      return NextResponse.redirect(url);
+    if (request.nextUrl.searchParams.get("format") === "json") {
+      return jsonData({ url });
     }
 
-    return jsonData({ url });
+    return NextResponse.redirect(url);
   });
 }
