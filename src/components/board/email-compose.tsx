@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { maxAttachmentSizeLabel } from "@shared/attachment-limits";
 import { PaperclipIcon, XIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +99,10 @@ export function EmailCompose({
         uploaded.push(await uploadAttachment(ticketId, file));
       }
       setAttachments((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      toast.error("Could not attach file", {
+        description: err instanceof Error ? err.message : "Upload failed",
+      });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -246,6 +252,9 @@ export function EmailCompose({
           <PaperclipIcon />
           {uploading ? "Uploading…" : "Attach files"}
         </Button>
+        <span className="text-xs text-muted-foreground">
+          Max {maxAttachmentSizeLabel()} per file
+        </span>
       </div>
 
       {attachments.length > 0 && (

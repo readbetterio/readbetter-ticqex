@@ -3,12 +3,14 @@ import { ApiError } from "@server/lib/errors";
 import { isConversationTicket } from "@server/domain/ticket";
 import type { TicketRow } from "@server/domain/ticket";
 import {
+  attachmentExceedsLimitError,
+  MAX_ATTACHMENT_BYTES,
+} from "@shared/attachment-limits";
+import {
   ATTACHMENTS_BUCKET,
   finalPath,
   pendingPath,
 } from "@server/services/attachment-paths";
-
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export type PersistMessageAttachmentInput = {
   ticketId: string;
@@ -68,8 +70,8 @@ export async function stageAttachmentUpload(
   file: File,
   uploadedBy: string,
 ): Promise<StagedUpload> {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw ApiError.badRequest("Attachment exceeds 10MB limit");
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    throw ApiError.badRequest(attachmentExceedsLimitError());
   }
 
   const db = createAdminClient();
