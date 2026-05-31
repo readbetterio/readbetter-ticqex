@@ -404,14 +404,35 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
   );
 
   const hasSearchResults = lanes.some((lane) => lane.tickets.length > 0);
+  const handleTicketDeleted = useCallback(
+    (ticketId: string) => {
+      setLanes((current) => removeTicketFromLanes(current, ticketId));
+      void queryClient.removeQueries({
+        queryKey: ticketSummaryQueryKey(ticketId),
+      });
+      void queryClient.removeQueries({
+        queryKey: ticketMessagesQueryKey(ticketId),
+      });
+      void queryClient.refetchQueries({ queryKey: ["board"], type: "active" });
+    },
+    [queryClient, setLanes],
+  );
+
   const modalContext = useMemo(
     () => ({
       statuses: allStatuses,
       getInitialSeed,
       onStatusChange: moveTicketStatus,
       onBoardChange: handleBoardChange,
+      onTicketDeleted: handleTicketDeleted,
     }),
-    [allStatuses, getInitialSeed, handleBoardChange, moveTicketStatus],
+    [
+      allStatuses,
+      getInitialSeed,
+      handleBoardChange,
+      handleTicketDeleted,
+      moveTicketStatus,
+    ],
   );
 
   const header = (

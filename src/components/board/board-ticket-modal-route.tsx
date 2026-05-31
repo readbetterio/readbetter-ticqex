@@ -12,11 +12,20 @@ export function BoardTicketModalRoute({ ticketId }: { ticketId: string }) {
     getInitialSeed,
     onStatusChange,
     onBoardChange,
+    onTicketDeleted,
   } = useBoardTicketModalContext();
 
   const closeTicket = useCallback(() => {
     router.push("/board");
   }, [router]);
+
+  const handleTicketDeleted = useCallback(
+    (deletedId: string) => {
+      onTicketDeleted(deletedId);
+      closeTicket();
+    },
+    [closeTicket, onTicketDeleted],
+  );
 
   return (
     <TicketModal
@@ -26,6 +35,7 @@ export function BoardTicketModalRoute({ ticketId }: { ticketId: string }) {
       onStatusChange={onStatusChange}
       onClose={closeTicket}
       onBoardChange={onBoardChange}
+      onTicketDeleted={handleTicketDeleted}
     />
   );
 }

@@ -3,16 +3,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
-import { CopyIcon } from "@phosphor-icons/react";
+import { CopyIcon, DotsThreeVerticalIcon, TrashIcon } from "@phosphor-icons/react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,6 +83,7 @@ export function TicketModal({
   onStatusChange,
   onClose,
   onBoardChange,
+  onTicketDeleted,
 }: {
   ticketId: string;
   statuses: StatusOption[];
@@ -86,6 +95,7 @@ export function TicketModal({
   ) => Promise<void>;
   onClose: () => void;
   onBoardChange: (updated?: { id: string; unread_count?: number }) => void;
+  onTicketDeleted: (ticketId: string) => void;
 }) {
   const queryClient = useQueryClient();
   const summaryQuery = useTicketSummary(ticketId);
@@ -109,6 +119,9 @@ export function TicketModal({
     ticketId: string;
     message: string;
   } | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
   const currentDraft = draft?.ticketId === ticketId ? draft : null;
   const title = currentDraft?.title ?? summary?.title ?? "";
   const body =
@@ -354,6 +367,31 @@ export function TicketModal({
     await navigator.clipboard.writeText(text);
   }
 
+  function openDeleteDialog() {
+    setDeleteStep(1);
+    setDeleteDeleting(false);
+    setDeleteOpen(true);
+  }
+
+  function closeDeleteDialog() {
+    if (deleteDeleting) return;
+    setDeleteOpen(false);
+    setDeleteStep(1);
+  }
+
+  async function confirmDelete() {
+    setDeleteDeleting(true);
+    setCurrentError(null);
+    try {
+      await apiFetch(`/api/v1/tickets/${ticketId}`, { method: "DELETE" });
+      setDeleteOpen(false);
+      onTicketDeleted(ticketId);
+    } catch (err) {
+      setCurrentError(err instanceof Error ? err.message : "Delete failed");
+      setDeleteDeleting(false);
+    }
+  }
+
   async function toggleMessageRead(messageId: string) {
     try {
       const result = await apiFetch<{ read: boolean }>(
@@ -398,7 +436,22 @@ export function TicketModal({
     return [];
   }, [statuses, summary, initialSeed]);
 
+  const isTask =
+    (summary && isTaskSummary(summary)) ||
+    displaySeed?.kind === "task";
+  const deleteLabel = isTask ? "Delete task" : "Delete email conversation";
+  const deleteTitle = isTask ? "Delete this task?" : "Delete this email conversation?";
+  const deletePermanentTitle = isTask
+    ? "Permanently delete this task?"
+    : "Permanently delete this email conversation?";
+  const deleteDescription = isTask
+    ? "The task and its details will be removed from your board."
+    : "The conversation and all messages will be removed from your board.";
+  const deletePermanentDescription =
+    "This action cannot be undone. If a new email arrives later, it will start a new conversation.";
+
   return (
+    <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
@@ -448,12 +501,35 @@ export function TicketModal({
               <CopyIcon />
               Copy context
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Ticket actions"
+                  disabled={deleteDeleting}
+                >
+                  <DotsThreeVerticalIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuItem
+                  variant="destructive"
+                  onClick={openDeleteDialog}
+                >
+                  <TrashIcon />
+                  {deleteLabel}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
               onClick={onClose}
               aria-label="Close"
+              disabled={deleteDeleting}
             >
               <X />
             </Button>
@@ -558,7 +634,67 @@ export function TicketModal({
             </Alert>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => !open && closeDeleteDialog()}
+      >
+        <DialogContent className="sm:max-w-md">
+          {deleteStep === 1 ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>{deleteTitle}</DialogTitle>
+                <DialogDescription>{deleteDescription}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeDeleteDialog}
+                  disabled={deleteDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setDeleteStep(2)}
+                  disabled={deleteDeleting}
+                >
+                  Continue
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>{deletePermanentTitle}</DialogTitle>
+                <DialogDescription>{deletePermanentDescription}</DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeDeleteDialog}
+                  disabled={deleteDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={deleteDeleting}
+                  onClick={() => void confirmDelete()}
+                >
+                  {deleteDeleting ? "Deleting…" : "Delete permanently"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

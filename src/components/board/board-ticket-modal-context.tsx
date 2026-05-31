@@ -13,6 +13,7 @@ type BoardTicketModalContextValue = {
     toStatusId: string,
   ) => Promise<void>;
   onBoardChange: (updated?: { id: string; unread_count?: number }) => void;
+  onTicketDeleted: (ticketId: string) => void;
 };
 
 const BoardTicketModalContext =

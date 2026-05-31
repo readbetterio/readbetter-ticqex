@@ -232,3 +232,37 @@ export async function syncTicketLaneOrderOnStatusChange(
 
   invalidateLaneSortCache([oldStatusId, newStatusId]);
 }
+
+/** Remove a deleted ticket from every user's saved lane order. */
+export async function removeTicketFromAllLaneOrders(ticketId: string) {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("board_lane_orders")
+    .select("user_id, status_id, ticket_ids")
+    .contains("ticket_ids", [ticketId]);
+
+  if (error) throw ApiError.internal(error.message);
+  if (!data?.length) return;
+
+  const now = new Date().toISOString();
+  const affectedStatusIds = new Set<string>();
+  const rows = data.map((row) => {
+    affectedStatusIds.add(row.status_id as string);
+    const ticketIds = ((row.ticket_ids as string[]) ?? []).filter(
+      (id) => id !== ticketId,
+    );
+    return {
+      user_id: row.user_id as string,
+      status_id: row.status_id as string,
+      ticket_ids: ticketIds,
+      updated_at: now,
+    };
+  });
+
+  const { error: upsertError } = await db.from("board_lane_orders").upsert(rows, {
+    onConflict: "user_id,status_id",
+  });
+  if (upsertError) throw ApiError.internal(upsertError.message);
+
+  invalidateLaneSortCache([...affectedStatusIds]);
+}

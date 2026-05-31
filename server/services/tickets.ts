@@ -24,7 +24,10 @@ import {
   listEnrichedMessages,
 } from "@server/services/messages";
 import { getUnreadCountsByTicket } from "@server/services/message-reads";
-import { syncTicketLaneOrderOnStatusChange } from "@server/services/board-lane-orders";
+import {
+  removeTicketFromAllLaneOrders,
+  syncTicketLaneOrderOnStatusChange,
+} from "@server/services/board-lane-orders";
 import { touchTicket } from "@server/services/ticket-touch";
 import type { AuthContext } from "@server/middleware/auth";
 import type { createTicketSchema } from "@server/lib/validation/schemas";
@@ -360,7 +363,19 @@ export async function updateTicket(
 }
 
 export async function deleteTicket(id: string) {
+  await loadTicketRow(id);
+
   const db = createAdminClient();
+
+  const { error: customFieldError } = await db
+    .from("custom_field_values")
+    .delete()
+    .eq("entity_type", "ticket")
+    .eq("entity_id", id);
+  if (customFieldError) throw ApiError.internal(customFieldError.message);
+
+  await removeTicketFromAllLaneOrders(id);
+
   const { error } = await db.from("tickets").delete().eq("id", id);
   if (error) throw ApiError.internal(error.message);
 }
