@@ -1,7 +1,6 @@
 import { afterEach, expect } from "vitest";
 import { createApiKey, revokeApiKey } from "@server/services/api-keys";
 import {
-  describeIntegration,
   requireSupabaseEnv,
   signInAsSeedAdmin,
 } from "../helpers/integration";

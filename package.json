@@ -2,6 +2,33 @@
   "name": "ticqex",
   "version": "0.1.0",
   "private": true,
+  "description": "Open-source, agent-first support platform with first-class REST API and MCP, a realtime Kanban admin, and a composable channel layer (email parsing onboard). Built on Next.js and Supabase.",
+  "license": "MIT",
+  "homepage": "https://github.com/ticqex/ticqex#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ticqex/ticqex.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ticqex/ticqex/issues"
+  },
+  "keywords": [
+    "agent-first",
+    "ai-agents",
+    "mcp",
+    "support",
+    "helpdesk",
+    "ticketing",
+    "kanban",
+    "api",
+    "nextjs",
+    "supabase",
+    "resend",
+    "email"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

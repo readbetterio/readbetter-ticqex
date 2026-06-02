@@ -1,234 +1,112 @@
-## Cursor Cloud specific instructions
+# AGENTS.md
 
-### What this environment is for
+Guidance for AI agents and contributors working in this repository. Keep changes
+small, typed, and tested. Human-facing setup lives in [README.md](./README.md);
+contribution process lives in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Local development of **inbound email** (Resend webhook → ticket) and **outbound email** (admin public reply → Resend), with the app exposed on the internet via a **named Cloudflare tunnel** so Resend can reach webhooks.
+## What this project is
 
+Ticqex is an agent-first support platform: every ticket action is exposed over a
+typed REST API (`/api/v1/*`) and an MCP server, so AI agents are first-class
+operators alongside humans, who supervise on a realtime Kanban admin. A
+composable, registry-based channel/integration layer adapts the platform to each
+deployment; email parsing ships onboard (inbound → tickets, outbound via Resend).
+Built on Supabase (Postgres, Auth, Realtime) and Next.js (App Router), async
+email work runs in-process via Next.js `after()` — there is no external job
+runner.
 
-| Public hostname       | Tunnel name   | Tunnel ID                              |
-| --------------------- | ------------- | -------------------------------------- |
-| `support.example.com` | `example-dev` | `00000000-0000-0000-0000-000000000000` |
+## Tech stack
 
+- **Next.js 16** (App Router) + **React 19**, TypeScript everywhere
+- **Supabase** (Postgres, Auth, RLS) — local stack via Docker
+- **Resend** for inbound/outbound email (Svix-signed webhooks)
+- **Tailwind v4** + shadcn/ui + Radix for the admin UI
+- **Vitest** for unit + integration tests
+- **pnpm** is the only supported package manager
 
-Do **not** use `cloudflared tunnel --url http://localhost:3000` for Resend/webhook testing on that hostname — quick tunnels are a separate mechanism and do not use the named tunnel DNS.
+## Repository layout
 
-Further integration detail: [INTEGRATIONS.md](../ticqex-workspace/docs/INTEGRATIONS.md) (private workspace docs).
+| Path | Purpose |
+|------|---------|
+| `src/app/` | Next.js App Router — admin UI, API routes (`/api/v1/*`), webhooks, MCP |
+| `src/components/` | React components (board, settings, account) |
+| `server/services/` | Business logic (tickets, board, messages, customers, …) |
+| `server/channels/` | Product channel behavior (email today) |
+| `server/integrations/` | External providers (Resend) |
+| `server/lib/`, `server/middleware/` | Route handlers, auth, validation, errors |
+| `shared/` | Code shared between client and server (config, registries, schemas) |
+| `supabase/migrations/` | Database schema (source of truth) |
+| `scripts/` | Setup/seed/verify CLIs (`pnpm ticqex`, `db:*`, `config:*`) |
+| `config/` | Activation config (`ticqex.config.json`, committed) |
+| `tests/unit`, `tests/integration` | Vitest suites (helpers in `tests/helpers/`) |
 
-### Services overview
+## Local development
 
-
-| Service            | Command                                                     | Port                                    | Notes                                                |
-| ------------------ | ----------------------------------------------------------- | --------------------------------------- | ---------------------------------------------------- |
-| Next.js dev server | `pnpm dev`                                                  | 3000                                    | App UI + API routes + background email via `after()` |
-| Supabase local     | `pnpm db:start`                                             | 54321 (API), 54322 (DB), 54323 (Studio) | Requires Docker                                      |
-| Cloudflare tunnel  | `cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN"` | —                                       | Proxies public hostname → `localhost:3000`           |
-
-
-### Secrets: Cursor Cloud
-
-The cloud agent injects secrets into **process.env** (not committed to git). Next.js and scripts read them directly — no file sync step. Inspect names with:
+Prerequisites: Node 20+, pnpm, Docker (for local Supabase).
 
 ```bash
-echo "$CLOUD_AGENT_ALL_SECRET_NAMES"
-echo "$CLOUD_AGENT_INJECTED_SECRET_NAMES"
+pnpm install
+pnpm ticqex init        # interactive: Supabase + channels + env
+pnpm dev                # http://localhost:3000
 ```
 
-Typically provided:
-
-
-| Variable                        | In Cursor Cloud | Notes                                                                                               |
-| ------------------------------- | --------------- | --------------------------------------------------------------------------------------------------- |
-| `RESEND_API_KEY`                | Yes             | Outbound + Resend API                                                                               |
-| `RESEND_INBOUND_WEBHOOK_SECRET` | Yes             | Svix signing secret (`whsec_...`) from Resend webhook details                                       |
-| `CLOUDFLARE_TUNNEL_TOKEN`       | Yes             | Run token for named tunnel `example-dev`                                                            |
-| `SUPPORT_EMAIL`                 | Yes             | Verified Resend sender                                                                              |
-| `SUPPORT_FROM_NAME`             | Yes             |                                                                                                     |
-| `NEXT_PUBLIC_APP_URL`           | Yes             | Set to `https://support.example.com` when tunnel is up                                              |
-| Supabase keys                   | **No**          | Written by `pnpm db:env` into `.env.local` after `pnpm db:start` (`PUBLISHABLE_KEY` / `SECRET_KEY`) |
-
-
-Local Supabase keys still go in `**.env.local`** via `pnpm db:env`. Email and tunnel secrets come from Cursor Cloud (or set manually in `.env.local` for non-cloud dev).
-
-After Supabase is up:
+Manual equivalent:
 
 ```bash
-cd /workspace
-pnpm db:start          # if not already running
-pnpm db:env            # Supabase JWT keys → .env.local
-pnpm env:verify        # optional sanity check
-```
-
-If `RESEND_INBOUND_WEBHOOK_SECRET` is wrong or missing, copy the **signing secret** from [Resend → Webhooks](https://resend.com/webhooks) (webhook details page) or fetch it via `resend.webhooks.get(id)` using `RESEND_API_KEY`. If you recreate the webhook, update the Cursor Cloud secret to match.
-
-### Full startup sequence
-
-Run in order:
-
-```bash
-# 1. Docker (cloud VM)
-sudo dockerd &
-sleep 3
-sudo chmod 666 /var/run/docker.sock
-
-# 2. Supabase + DB
-cd /workspace
-pnpm db:start
-# If containers are stale: pnpm db:stop && pnpm db:start
-pnpm db:env
-pnpm db:seed-admin
-
-# 3. Verify environment (optional)
-pnpm db:env
-pnpm env:verify
-pnpm db:seed-admin
-
-# 4. App
+pnpm db:start           # local Supabase (Docker)
+pnpm db:env             # write Supabase keys → .env.local
+pnpm db:bootstrap       # required statuses + settings
+pnpm db:seed-admin      # optional local admin user
 pnpm dev
-
-# 5. Named tunnel (NOT quick tunnel) — separate terminal or background
-cloudflared tunnel run --token "$CLOUDFLARE_TUNNEL_TOKEN"
 ```
 
-Do **not** start a second `pnpm dev` on the same port.
+Open `http://localhost:3000` (not `127.0.0.1` — Next.js dev treats them as
+different origins). Health check: `http://localhost:3000/api/health` should
+return `{"status":"ok","checks":{"app":"ok","database":"ok"}}`.
 
-Install `cloudflared` if missing:
+## Standard commands
 
-```bash
-curl -L --output /tmp/cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-sudo dpkg -i /tmp/cloudflared.deb
-```
+`pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`, `pnpm test:unit`,
+`pnpm test:integration`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`,
+`pnpm db:env`, `pnpm db:bootstrap`, `pnpm db:seed-admin`, `pnpm config:check`,
+`pnpm env:verify`.
 
-**Health checks:**
+## Working agreement for agents
 
-```bash
-curl -s http://127.0.0.1:3000/api/health
-curl -s https://support.example.com/api/health
-```
+- **Always use `pnpm`.** Never introduce `npm`/`yarn` lockfiles.
+- **Migrations are local-only.** After editing `supabase/migrations/`, apply with
+  `pnpm db:reset` (clean) or `pnpm db:start` (pending) against the **local** DB
+  only. Never run migrations against a remote/production Supabase project.
+- **Restart the dev server yourself** after server/API/config changes or when
+  Turbopack shows stale errors. Only one `pnpm dev` at a time.
+- **Test your change** before finishing: `pnpm test:unit` for fast checks;
+  `pnpm test:integration` after `pnpm db:env` + `pnpm db:seed-admin` for
+  DB-backed behavior. Add tests under `tests/unit/` or `tests/integration/`.
+- **Validate input** with Zod schemas in `server/lib/validation/`; return errors
+  via the helpers in `server/lib/errors.ts` / `response.ts`.
+- **Never commit secrets.** `.env.local` and credentials stay out of git
+  (`.env.example` is the committed template).
 
-Expect: `{"status":"ok","checks":{"app":"ok","database":"ok"}}`
+## Conventions
 
-**Browser testing:** Open the app at `http://localhost:3000`, not `http://127.0.0.1:3000`. Next.js dev mode treats these as different origins; client JS and HMR can fail on `127.0.0.1` unless `allowedDevOrigins` is configured (already set in `next.config.ts`).
+- Business logic lives in `server/services/`; route handlers stay thin.
+- Shared client/server code goes in `shared/`; keep it free of server-only deps.
+- Prefer the registry pattern (`shared/registry/`) for channels/integrations.
+- Comments explain *why*, not *what*. Avoid narrating obvious code.
 
-Public URL returning **1033** or **530** → named tunnel not connected. **502** → tunnel up but nothing on `:3000`.
+## Gotchas
 
-### Cloudflare tunnel
+- **Supabase keys:** use publishable + secret keys from `pnpm db:env`
+  (`PUBLISHABLE_KEY` / `SECRET_KEY`), not legacy JWT anon/service-role keys.
+- **Stale Supabase state:** `supabase start` may report "already running" while
+  the DB container exited → `pnpm db:stop && pnpm db:start`.
+- **Webhook verification** uses Svix headers (`svix-id/-timestamp/-signature`),
+  not a plain HMAC of the body. Verify against the raw request body string.
+- **Inbound `email.received` payloads omit the body** — it is fetched via the
+  Resend API in `resolveInbound()` before the ticket message is created.
 
-Preferred on cloud VMs: set `CLOUDFLARE_TUNNEL_TOKEN` in Cursor Cloud secrets (Cloudflare Zero Trust → **Networks** → **Tunnels** → **example-dev** → copy the **run token**).
+## Deployment & integration docs
 
-Alternative with credentials on disk (`~/.cloudflared/cert.pem` + tunnel JSON):
-
-```yaml
-# ~/.cloudflared/config.yml
-tunnel: example-dev
-credentials-file: /home/ubuntu/.cloudflared/00000000-0000-0000-0000-000000000000.json
-ingress:
-  - hostname: support.example.com
-    service: http://localhost:3000
-  - service: http_status:404
-```
-
-```bash
-cloudflared tunnel run example-dev
-```
-
-Do not commit `.env.local` or `~/.cloudflared/*` — VM-only secrets.
-
-### Resend
-
-
-| Setting             | Value                                                                  |
-| ------------------- | ---------------------------------------------------------------------- |
-| Inbound webhook URL | `https://support.example.com/api/webhooks/integrations/resend/inbound` |
-| Event               | `email.received` only                                                  |
-| Signing secret      | → `RESEND_INBOUND_WEBHOOK_SECRET` in Cursor Cloud or `.env.local`      |
-
-
-**Webhook signature verification** uses **Svix**, not a plain HMAC of the body. Resend sends `svix-id`, `svix-timestamp`, and `svix-signature` headers. The app verifies via `resend.webhooks.verify()` in `server/integrations/resend/verify-svix.ts`. A wrong secret or incorrect verification algorithm returns `401 {"error":{"code":"unauthorized","message":"Invalid webhook signature"}}`.
-
-Use the **raw request body** (string) when verifying — re-stringifying parsed JSON breaks the signature.
-
-**Metadata-only webhooks:** `email.received` payloads do not include the body. The app calls `resend.emails.receiving.get(email_id)` in `resolveInbound()` before creating the ticket message. Without this, tickets are created with an empty body.
-
-Inbound receiving (MX/domain) must be enabled in Resend separately from the webhook.
-
-### Email architecture (Vercel `after()`)
-
-Async email work runs in the same Next.js process via `[after()](https://nextjs.org/docs/app/api-reference/functions/after)` from `next/server` — no external job runner.
-
-
-| Direction | Entry                                            | Background work          | Notes                                                   |
-| --------- | ------------------------------------------------ | ------------------------ | ------------------------------------------------------- |
-| Inbound   | `POST /api/webhooks/integrations/resend/inbound` | `enqueueInboundEmail()`  | Svix verify → `200`; body fetched in `resolveInbound()` |
-| Outbound  | `POST /api/v1/tickets/:id/messages` (public)     | `enqueueOutboundEmail()` | After DB insert; Resend send in background              |
-
-
-Implementation: `server/channels/email/background.ts`, `server/channels/email/outbound.ts`, and `server/integrations/resend/`*. DB dedupe: `message_external_refs`, `messages.email_message_id`.
-
-**Verify delivery in the database** — a webhook `200 {"accepted":true}` means processing was scheduled, not necessarily finished:
-
-
-| Direction | Success signal                                                |
-| --------- | ------------------------------------------------------------- |
-| Inbound   | New row in `tickets` / `messages`; body populated (not empty) |
-| Outbound  | `messages.email_message_id` set (e.g. `<uuid@resend.dev>`)    |
-
-
-Errors are logged to the Next.js server console. Resend retries inbound webhooks on non-2xx responses.
-
-### Inbound vs outbound addressing
-
-
-| Role                                   | Example                                                                 | Config                       |
-| -------------------------------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| Inbound (customers email this address) | `hello@support.example.com`                                             | Resend receiving domain + MX |
-| Outbound From                          | `SUPPORT_EMAIL` in Cursor Cloud (e.g. verified sender on `example.com`) | Resend domain verification   |
-
-
-These are separate Resend settings. Inbound needs receiving enabled; outbound needs a verified sender. Both must match what customers and the app expect.
-
-### Key gotchas
-
-- **Docker in cloud VM**: Requires `fuse-overlayfs` storage driver and `iptables-legacy`. `/etc/docker/daemon.json` should include `{"storage-driver": "fuse-overlayfs"}`.
-- **Supabase stale state**: `supabase start` may report “already running” while DB container exited → `pnpm db:stop && pnpm db:start`.
-- **Supabase keys format**: Use publishable + secret keys from `pnpm db:env` (`PUBLISHABLE_KEY` / `SECRET_KEY` in `supabase status -o json`). Do not use legacy JWT `ANON_KEY` / `SERVICE_ROLE_KEY`.
-- **Nothing on :3000** → tunnel returns **502**; health URL fails publicly even if tunnel is up.
-- `**example-dev` not running** → **1033/530** from Cloudflare.
-- **esbuild build scripts**: pnpm ignores esbuild postinstall by default; `tsx` seed scripts still work.
-- **Admin credentials**: `admin@ticqex.local` / `ticqex-admin-change-me` via `pnpm db:seed-admin`.
-- **Resend webhook 401**: Check `RESEND_INBOUND_WEBHOOK_SECRET` matches the signing secret on the Resend webhook; verification must use Svix headers, not raw HMAC.
-
-### Standard commands
-
-`pnpm lint`, `pnpm build`, `pnpm dev`, `pnpm env:verify`, `pnpm db:start`, `pnpm db:stop`, `pnpm db:reset`, `pnpm db:env`, `pnpm db:seed-admin`, `pnpm test`, `pnpm test:unit`, `pnpm test:integration`.
-
-### Agent workflow: finish work locally
-
-When implementing features in this cloud VM, **be proactive** — do not stop at code + PR. Before handing off:
-
-1. **Apply migrations locally (local only)** — After adding or changing files under `supabase/migrations/`, apply them to the **local** Supabase instance only:
-  ```bash
-   pnpm db:reset          # clean apply of all migrations + seed
-   # or, if DB is already up and you only need pending migrations:
-   pnpm db:start          # applies new migrations on start when possible
-  ```
-   **Never** run migrations against production or a remote Supabase project from the agent. Local DB is `127.0.0.1:54322`.
-   If `db:reset` fails on container restart, run `pnpm db:stop && pnpm db:start`. Confirm the new schema exists (e.g. `docker exec supabase_db_ticqex psql -U postgres -c '\d public.<table>'`).
-2. **Sync Supabase env** — After reset or first boot:
-  ```bash
-   pnpm db:env
-   pnpm db:seed-admin
-  ```
-3. **Start the app and health-check** — Use `pnpm dev`. Confirm:
-  ```bash
-   curl -s http://127.0.0.1:3000/api/health
-  ```
-   Expect `"database":"ok"`.
-   **Restart the dev server yourself** — Do not tell the user to restart. After server-side, API, or config changes (or when Turbopack shows stale parse/build errors), stop and restart locally:
-   Then re-run the health check before handing off. Only one `pnpm dev` at a time.
-4. **Always test the change** — Verify end-to-end before finishing:
-  - Run `pnpm test:unit` for fast checks; `pnpm test:integration` after `pnpm db:env` and `pnpm db:seed-admin` for DB-backed behavior.
-  - For UI work, exercise the flow in the browser (login: `admin@ticqex.local` / `ticqex-admin-change-me`).
-  - For API-only changes, call the routes with a real JWT (see scripts under `scripts/`).
-5. **Report what you ran** — In the PR or final message, state that migrations were applied locally and which tests passed.
-
-Add Vitest tests under `tests/unit/` or `tests/integration/` when a feature needs repeatable verification.
+Hosting (Vercel + Supabase Cloud), Cloudflare tunnel webhook setup, and detailed
+Resend configuration live in the separate docs repository. Do not add
+environment-specific operational runbooks to this file.

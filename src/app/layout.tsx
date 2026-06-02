@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Ticqex",
-  description: "API-first support platform",
+  description: "Agent-first support platform",
 };
 
 export default function RootLayout({

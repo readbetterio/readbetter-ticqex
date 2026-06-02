@@ -1,6 +1,29 @@
 # Ticqex
 
-> API-first, open-core support platform with a realtime Kanban admin.
+> Open-source, agent-first support platform — first-class REST API and MCP, with a realtime Kanban admin.
+
+[![CI](https://github.com/ticqex/ticqex/actions/workflows/ci.yml/badge.svg)](https://github.com/ticqex/ticqex/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-orange.svg)
+
+Ticqex treats AI agents as first-class operators: every ticket action is
+available over a typed REST API (`/api/v1/*`) and an MCP server, so agents can
+triage, respond, and manage tickets — while humans supervise on a realtime
+Kanban board.
+
+A composable channel and integration layer (registry-based) adapts the platform
+to however support reaches you. Email parsing ships onboard — inbound messages
+are parsed into tickets and replies are delivered via Resend — and new channels
+and providers plug in without touching the core.
+
+Built on Supabase (Postgres, Auth, and Realtime) and Next.js (App Router), async
+email work runs in-process via Next.js `after()` — no external job runner
+required.
+
+<!-- TODO: replace with a real screenshot or demo GIF of the Kanban board.
+     Drop the asset under public/ (e.g. public/screenshot.png) and reference it:
+![Ticqex board](./public/screenshot.png)
+-->
 
 ## Quick start
 
@@ -120,6 +143,20 @@ Set `SKIP_MCP_INTEGRATION=1` to skip the MCP HTTP test when `pnpm dev` is not ru
 | `config/` | OSS activation config (`ticqex.config.json` — version-controlled; `ticqex.config.example.json` is the bootstrap template) |
 | `supabase/migrations/` | Database schema |
 | `tests/` | Vitest unit + integration tests |
+
+## Documentation
+
+This repo covers local development and the environment reference above.
+Deployment guides (Vercel + Supabase Cloud), Cloudflare tunnel webhook setup, and
+detailed Resend configuration live in the separate docs repository.
+
+<!-- TODO: link the docs site/repo once published, e.g. https://github.com/ticqex/docs -->
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for setup,
+coding standards, and the PR workflow. Security issues: see
+[SECURITY.md](./SECURITY.md).
 
 ## License
 
