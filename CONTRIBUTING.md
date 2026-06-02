@@ -5,7 +5,8 @@ project, the standards we follow, and how to submit changes.
 
 ## Getting started
 
-Prerequisites: **Node.js 20+**, **pnpm**, and **Docker** (for local Supabase).
+Prerequisites: **Node.js 20+** (development pinned to Node 22 — see
+[`.nvmrc`](./.nvmrc)), **pnpm**, and **Docker** (for local Supabase).
 
 ```bash
 pnpm install

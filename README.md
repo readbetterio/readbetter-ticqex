@@ -29,7 +29,7 @@ required.
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 20+ (development pinned to Node 22 — see [`.nvmrc`](./.nvmrc))
 - [pnpm](https://pnpm.io/)
 - [Docker](https://www.docker.com/) (for local Supabase)
 

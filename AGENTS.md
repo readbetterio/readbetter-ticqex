@@ -42,7 +42,8 @@ runner.
 
 ## Local development
 
-Prerequisites: Node 20+, pnpm, Docker (for local Supabase).
+Prerequisites: Node 20+ (dev pinned to Node 22 in `.nvmrc`), pnpm, Docker (for
+local Supabase).
 
 ```bash
 pnpm install
@@ -105,8 +106,3 @@ return `{"status":"ok","checks":{"app":"ok","database":"ok"}}`.
 - **Inbound `email.received` payloads omit the body** — it is fetched via the
   Resend API in `resolveInbound()` before the ticket message is created.
 
-## Deployment & integration docs
-
-Hosting (Vercel + Supabase Cloud), Cloudflare tunnel webhook setup, and detailed
-Resend configuration live in the separate docs repository. Do not add
-environment-specific operational runbooks to this file.
