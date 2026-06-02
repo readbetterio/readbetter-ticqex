@@ -21,7 +21,7 @@ export function registerCustomFieldTools(server: McpServer) {
     {
       title: "List Custom Fields",
       description: "List custom field definitions.",
-      inputSchema: { group: z.enum(["ticket", "customer"]).optional() },
+      inputSchema: { group: z.enum(["ticket", "contact"]).optional() },
     },
     async ({ group }) => toolResult(await listDefinitions(createAdminClient(), group)),
   );
@@ -31,7 +31,8 @@ export function registerCustomFieldTools(server: McpServer) {
     "ticqex_create_custom_field",
     {
       title: "Create Custom Field",
-      description: "Create a custom field definition. Admin only.",
+      description:
+        "Create a custom field definition (text, number, date, boolean, select, url, json). Select fields require options.values. Admin only.",
       inputSchema: createCustomFieldSchema.shape,
       admin: true,
     },
@@ -46,7 +47,8 @@ export function registerCustomFieldTools(server: McpServer) {
     "ticqex_update_custom_field",
     {
       title: "Update Custom Field",
-      description: "Update a custom field definition. Admin only.",
+      description:
+        "Update a custom field definition. Type changes are rejected when stored values exist. Admin only.",
       inputSchema: { id: uuid, patch: updateCustomFieldSchema },
       admin: true,
     },

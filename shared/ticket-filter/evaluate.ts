@@ -10,7 +10,7 @@ export type TicketFilterMatchTicket = {
   channel: string | null;
   origin?: string | null;
   assignee_id: string | null;
-  customer_id: string | null;
+  contact_id: string | null;
   custom_fields: Record<string, unknown>;
   tags: { name: string }[];
   unread_count: number;
@@ -90,9 +90,9 @@ export function evaluateCondition(
         normalized.value,
         normalized.values,
       );
-    case "customer_id":
+    case "contact_id":
       return matchesScalar(
-        ticket.customer_id,
+        ticket.contact_id,
         normalized.op,
         normalized.value,
         normalized.values,

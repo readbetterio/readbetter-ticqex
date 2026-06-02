@@ -1,13 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "@server/lib/errors";
 import { chunkArray } from "@server/lib/chunked-array";
+import {
+  coerceCustomFieldValue,
+  normalizeSelectOptions,
+  parseSelectOptions,
+  validateDefinitionOptions,
+  type CustomFieldType,
+} from "@shared/custom-fields";
 
 type FieldRow = {
   id: string;
-  group: "ticket" | "customer";
+  group: "ticket" | "contact";
   key: string;
   label: string;
-  type: string;
+  type: CustomFieldType;
   options: Record<string, unknown> | null;
 };
 
@@ -37,7 +44,7 @@ function valueFromRow(row: ValueRow, field: FieldRow): unknown {
   }
 }
 
-function rowFromValue(
+function rowFromCoercedValue(
   field: FieldRow,
   value: unknown,
 ): Omit<ValueRow, "entity_type" | "entity_id" | "field_id"> {
@@ -51,27 +58,48 @@ function rowFromValue(
 
   switch (field.type) {
     case "number":
-      return { ...base, value_number: Number(value) };
+      return { ...base, value_number: value as number };
     case "date":
-      return { ...base, value_date: String(value) };
+      return { ...base, value_date: value as string };
     case "boolean":
-      return { ...base, value_boolean: Boolean(value) };
+      return { ...base, value_boolean: value as boolean };
     case "json":
-      return {
-        ...base,
-        value_json:
-          typeof value === "object" && value !== null
-            ? (value as Record<string, unknown>)
-            : null,
-      };
+      return { ...base, value_json: value as Record<string, unknown> };
     default:
       return { ...base, value_text: value == null ? null : String(value) };
   }
 }
 
+function normalizeDefinitionOptions(
+  type: CustomFieldType,
+  options: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (type === "select") {
+    return normalizeSelectOptions(parseSelectOptions(options));
+  }
+  return options && Object.keys(options).length > 0 ? options : null;
+}
+
+export function assertValidDefinitionOptions(
+  type: CustomFieldType,
+  options: Record<string, unknown> | null | undefined,
+) {
+  const message = validateDefinitionOptions(type, options);
+  if (message) throw ApiError.badRequest(message);
+}
+
+async function countFieldValues(db: SupabaseClient, fieldId: string): Promise<number> {
+  const { count, error } = await db
+    .from("custom_field_values")
+    .select("*", { count: "exact", head: true })
+    .eq("field_id", fieldId);
+  if (error) throw ApiError.internal(error.message);
+  return count ?? 0;
+}
+
 export async function loadCustomFieldsMap(
   db: SupabaseClient,
-  entityType: "ticket" | "customer",
+  entityType: "ticket" | "contact",
   entityIds: string[],
 ): Promise<Map<string, Record<string, unknown>>> {
   const result = new Map<string, Record<string, unknown>>();
@@ -102,7 +130,7 @@ export async function loadCustomFieldsMap(
 
 export async function setCustomFields(
   db: SupabaseClient,
-  group: "ticket" | "customer",
+  group: "ticket" | "contact",
   entityId: string,
   fields: Record<string, unknown> | undefined,
 ) {
@@ -120,11 +148,30 @@ export async function setCustomFields(
     (definitions ?? []).map((d) => [d.key, d as FieldRow]),
   );
 
-  for (const [key, value] of Object.entries(fields)) {
+  for (const [key, rawValue] of Object.entries(fields)) {
     const def = defByKey.get(key);
     if (!def) throw ApiError.badRequest(`Unknown custom field: ${key}`);
 
-    const typed = rowFromValue(def, value);
+    let coerced;
+    try {
+      coerced = coerceCustomFieldValue(def.type, rawValue, def.options);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Invalid custom field value";
+      throw ApiError.badRequest(`${key}: ${message}`);
+    }
+
+    if (coerced.kind === "clear") {
+      const { error } = await db
+        .from("custom_field_values")
+        .delete()
+        .eq("field_id", def.id)
+        .eq("entity_type", group)
+        .eq("entity_id", entityId);
+      if (error) throw ApiError.internal(error.message);
+      continue;
+    }
+
+    const typed = rowFromCoercedValue(def, coerced.value);
     const { error } = await db.from("custom_field_values").upsert(
       {
         field_id: def.id,
@@ -140,7 +187,7 @@ export async function setCustomFields(
 
 export async function listDefinitions(
   db: SupabaseClient,
-  group?: "ticket" | "customer",
+  group?: "ticket" | "contact",
 ) {
   let q = db.from("custom_field_definitions").select("*").order("position");
   if (group) q = q.eq("group", group);
@@ -149,15 +196,21 @@ export async function listDefinitions(
   return data ?? [];
 }
 
-export async function createDefinition(db: SupabaseClient, input: {
-  group: "ticket" | "customer";
-  key: string;
-  label: string;
-  type: string;
-  options?: Record<string, unknown>;
-  required?: boolean;
-  position?: number;
-}) {
+export async function createDefinition(
+  db: SupabaseClient,
+  input: {
+    group: "ticket" | "contact";
+    key: string;
+    label: string;
+    type: CustomFieldType;
+    options?: Record<string, unknown> | null;
+    required?: boolean;
+    position?: number;
+  },
+) {
+  assertValidDefinitionOptions(input.type, input.options ?? null);
+  const options = normalizeDefinitionOptions(input.type, input.options);
+
   const { data, error } = await db
     .from("custom_field_definitions")
     .insert({
@@ -165,7 +218,7 @@ export async function createDefinition(db: SupabaseClient, input: {
       key: input.key,
       label: input.label,
       type: input.type,
-      options: input.options ?? null,
+      options,
       required: input.required ?? false,
       position: input.position ?? 0,
     })
@@ -183,9 +236,39 @@ export async function updateDefinition(
   id: string,
   patch: Record<string, unknown>,
 ) {
+  const { data: existing, error: loadErr } = await db
+    .from("custom_field_definitions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadErr) throw ApiError.internal(loadErr.message);
+  if (!existing) throw ApiError.notFound("Custom field not found");
+
+  const nextType = (patch.type ?? existing.type) as CustomFieldType;
+  const nextOptions =
+    patch.options !== undefined
+      ? (patch.options as Record<string, unknown> | null)
+      : (existing.options as Record<string, unknown> | null);
+
+  assertValidDefinitionOptions(nextType, nextOptions);
+
+  if (patch.type !== undefined && patch.type !== existing.type) {
+    const valueCount = await countFieldValues(db, id);
+    if (valueCount > 0) {
+      throw ApiError.conflict(
+        "Cannot change field type while values exist. Delete existing values first.",
+      );
+    }
+  }
+
+  const normalizedPatch = { ...patch };
+  if (patch.options !== undefined || patch.type !== undefined) {
+    normalizedPatch.options = normalizeDefinitionOptions(nextType, nextOptions);
+  }
+
   const { data, error } = await db
     .from("custom_field_definitions")
-    .update(patch)
+    .update(normalizedPatch)
     .eq("id", id)
     .select()
     .single();
@@ -197,6 +280,40 @@ export async function updateDefinition(
 export async function deleteDefinition(db: SupabaseClient, id: string) {
   const { error } = await db.from("custom_field_definitions").delete().eq("id", id);
   if (error) throw ApiError.internal(error.message);
+}
+
+export async function reorderDefinitions(
+  db: SupabaseClient,
+  group: "ticket" | "contact",
+  orderedIds: string[],
+) {
+  const { data: defs, error: loadErr } = await db
+    .from("custom_field_definitions")
+    .select("id")
+    .eq("group", group);
+  if (loadErr) throw ApiError.internal(loadErr.message);
+
+  const knownIds = new Set((defs ?? []).map((d) => d.id as string));
+  if (orderedIds.length !== knownIds.size) {
+    throw ApiError.badRequest("Reorder list must include every field in the group");
+  }
+  for (const id of orderedIds) {
+    if (!knownIds.has(id)) {
+      throw ApiError.badRequest("Reorder list contains unknown field id");
+    }
+  }
+
+  await Promise.all(
+    orderedIds.map((id, position) =>
+      db
+        .from("custom_field_definitions")
+        .update({ position })
+        .eq("id", id)
+        .eq("group", group),
+    ),
+  );
+
+  return listDefinitions(db, group);
 }
 
 export async function filterTicketIdsByCustomFields(

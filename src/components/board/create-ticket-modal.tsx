@@ -36,7 +36,7 @@ export function CreateTicketModal({
   onCreate: (payload: CreateTicketPayload) => void;
 }) {
   const [title, setTitle] = useState("");
-  const [customer, setCustomer] = useState("");
+  const [contact, setContact] = useState("");
   const [statusId, setStatusId] = useState(statuses[0]?.id ?? "");
   const [body, setBody] = useState("");
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
@@ -62,13 +62,13 @@ export function CreateTicketModal({
 
     setError(null);
     const trimmedBody = body.trim();
-    const trimmedCustomer = customer.trim();
+    const trimmedContact = contact.trim();
     const tagNames = selectedTags.map((tag) => tag.name.trim()).filter(Boolean);
 
     onCreate({
       title: trimmedTitle,
       ...(trimmedBody ? { body: trimmedBody } : {}),
-      ...(trimmedCustomer ? { customerUsername: trimmedCustomer } : {}),
+      ...(trimmedContact ? { contactUsername: trimmedContact } : {}),
       statusId,
       tags: selectedTags,
     });
@@ -92,12 +92,12 @@ export function CreateTicketModal({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="ticket-customer">Customer (optional)</Label>
+            <Label htmlFor="ticket-contact">Contact (optional)</Label>
             <Input
-              id="ticket-customer"
+              id="ticket-contact"
               placeholder="email or username"
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
             />
           </div>
           <div className="space-y-2">

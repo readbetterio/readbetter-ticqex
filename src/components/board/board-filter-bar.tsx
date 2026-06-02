@@ -39,7 +39,7 @@ export function BoardFilterBar({
           <span className="truncate">
             {formatFilterConditionLabel(condition, {
               users: draft.userLabels,
-              customers: draft.customerLabels,
+              contacts: draft.contactLabels,
               customFields: draft.customFieldLabels,
             })}
           </span>
@@ -83,7 +83,7 @@ export function BoardFilterBar({
             onOperatorChange={draft.handleOperatorChange}
             availableOperators={draft.availableOperators}
             assignees={draft.assignees}
-            customers={draft.customers}
+            contacts={draft.contacts}
             tags={draft.tags}
             singleValue={draft.singleValue}
             onSingleValueChange={draft.setSingleValue}

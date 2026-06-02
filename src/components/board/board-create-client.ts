@@ -15,7 +15,7 @@ import type {
 export type CreateTicketPayload = {
   title: string;
   body?: string;
-  customerUsername?: string;
+  contactUsername?: string;
   statusId: string;
   tags: Tag[];
 };
@@ -63,7 +63,7 @@ export function buildOptimisticBoardTicket(
   now: string,
 ): BoardTicket {
   const body = payload.body?.trim() ?? "";
-  const customerUsername = payload.customerUsername?.trim();
+  const contactUsername = payload.contactUsername?.trim();
   const preview = body ? bodyPreview(body) : "";
 
   return {
@@ -72,11 +72,11 @@ export function buildOptimisticBoardTicket(
     kind: "task",
     channel: null,
     origin: "manual",
-    customer_id: null,
+    contact_id: null,
     assignee_id: null,
     preview,
-    customer: customerUsername
-      ? { username: customerUsername, initials: initials(customerUsername) }
+    contact: contactUsername
+      ? { username: contactUsername, initials: initials(contactUsername) }
       : null,
     assignee: null,
     custom_fields: {},
@@ -107,13 +107,13 @@ export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
     id: detail.id,
     title: detail.title,
     origin: detail.origin,
-    customer_id: detail.customer_id,
+    contact_id: detail.contact_id,
     assignee_id: detail.assignee_id,
     preview,
-    customer: detail.customer
+    contact: detail.contact
       ? {
-          username: detail.customer.username,
-          initials: initials(detail.customer.username),
+          username: detail.contact.username,
+          initials: initials(detail.contact.username),
         }
       : null,
     assignee: detail.assignee
@@ -140,14 +140,14 @@ export function ticketDetailToBoardTicket(detail: TicketDetail): BoardTicket {
 }
 
 function ticketMatchesSearch(
-  ticket: Pick<BoardTicket, "title" | "preview" | "customer">,
+  ticket: Pick<BoardTicket, "title" | "preview" | "contact">,
   searchQuery: string,
 ): boolean {
   const q = searchQuery.trim().toLowerCase();
   if (!q) return true;
   if (ticket.title.toLowerCase().includes(q)) return true;
   if (ticket.preview.toLowerCase().includes(q)) return true;
-  if (ticket.customer?.username.toLowerCase().includes(q)) return true;
+  if (ticket.contact?.username.toLowerCase().includes(q)) return true;
   return false;
 }
 
@@ -157,7 +157,7 @@ function asFilterMatchTicket(ticket: BoardTicket): TicketFilterMatchTicket {
     channel: ticket.channel,
     origin: ticket.origin,
     assignee_id: ticket.assignee_id,
-    customer_id: ticket.customer_id,
+    contact_id: ticket.contact_id,
     custom_fields: ticket.custom_fields,
     tags: ticket.tags,
     unread_count: ticket.unread_count,

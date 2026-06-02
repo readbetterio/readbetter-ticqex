@@ -18,7 +18,7 @@ export async function loadReadMessageIds(
   return new Set((data ?? []).map((row) => row.message_id));
 }
 
-async function loadUnreadCustomerMessages(
+async function loadUnreadContactMessages(
   userId: string,
   ticketIds?: string[],
 ): Promise<{ ticketId: string; messageId: string }[]> {
@@ -28,7 +28,7 @@ async function loadUnreadCustomerMessages(
   let query = db
     .from("messages")
     .select("id, ticket_id")
-    .eq("author_type", "customer");
+    .eq("author_type", "contact");
 
   if (ticketIds?.length) {
     query = query.in("ticket_id", ticketIds);
@@ -52,7 +52,7 @@ export async function getUnreadCountsByTicket(
   ticketIds: string[],
   userId: string,
 ): Promise<Map<string, number>> {
-  const unread = await loadUnreadCustomerMessages(userId, ticketIds);
+  const unread = await loadUnreadContactMessages(userId, ticketIds);
   const counts = new Map<string, number>();
   for (const { ticketId } of unread) {
     counts.set(ticketId, (counts.get(ticketId) ?? 0) + 1);
@@ -64,7 +64,7 @@ export async function getTicketIdsByUnreadState(
   userId: string,
   hasUnread: boolean,
 ): Promise<Set<string>> {
-  const unreadMessages = await loadUnreadCustomerMessages(userId);
+  const unreadMessages = await loadUnreadContactMessages(userId);
   const unreadTicketIds = new Set(unreadMessages.map((msg) => msg.ticketId));
 
   if (hasUnread) return unreadTicketIds;
@@ -100,8 +100,8 @@ export async function setMessageReadState(
     .single();
 
   if (msgErr || !message) throw ApiError.notFound("Message not found");
-  if (message.author_type !== "customer") {
-    throw ApiError.badRequest("Only incoming customer messages support read state");
+  if (message.author_type !== "contact") {
+    throw ApiError.badRequest("Only incoming contact messages support read state");
   }
 
   if (read) {
@@ -132,8 +132,8 @@ export async function toggleMessageRead(messageId: string, userId: string) {
     .single();
 
   if (msgErr || !message) throw ApiError.notFound("Message not found");
-  if (message.author_type !== "customer") {
-    throw ApiError.badRequest("Only incoming customer messages support read state");
+  if (message.author_type !== "contact") {
+    throw ApiError.badRequest("Only incoming contact messages support read state");
   }
 
   const { data: existing } = await db
@@ -178,7 +178,7 @@ export async function markTicketMessagesRead(ticketId: string, userId: string) {
     .from("messages")
     .select("id")
     .eq("ticket_id", ticketId)
-    .eq("author_type", "customer");
+    .eq("author_type", "contact");
 
   if (error) throw ApiError.internal(error.message);
   if (!messages?.length) return { marked: 0 };

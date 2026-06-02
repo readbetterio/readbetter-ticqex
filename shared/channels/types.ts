@@ -28,7 +28,7 @@ export type TicketCardSurface = {
 export type ChannelFieldPolicy = {
   key: string;
   label: string;
-  group: "ticket" | "customer";
+  group: "ticket" | "contact";
   type: string;
   requiredWhen?: string;
   visibleWhen?: string;

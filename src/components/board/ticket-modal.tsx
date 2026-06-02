@@ -54,7 +54,7 @@ import {
   useTicketUsers,
 } from "@/hooks/use-ticket-reference-data";
 import { TicketConversationSection } from "./ticket-conversation-section";
-import { TicketCustomerSection } from "./ticket-customer-section";
+import { TicketContactSection } from "./ticket-contact-section";
 import { TicketDetailsSection } from "./ticket-details-section";
 import {
   TicketMetaSkeleton,
@@ -660,14 +660,14 @@ export function TicketModal({
                   onChange={(e) => updateDraft({ title: e.target.value })}
                 />
               </div>
-              {detailSummary.customer && detailSummary.customer_id && (
-                <TicketCustomerSection
-                  customerId={detailSummary.customer_id}
+              {detailSummary.contact && detailSummary.contact_id && (
+                <TicketContactSection
+                  contactId={detailSummary.contact_id}
                   displayName={
                     isConversationSummary(detailSummary) &&
                     detailSummary.contact_address
                       ? detailSummary.contact_address
-                      : detailSummary.customer.username
+                      : detailSummary.contact.username
                   }
                   contactAddress={
                     isConversationSummary(detailSummary)

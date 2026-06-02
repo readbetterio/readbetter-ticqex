@@ -7,26 +7,26 @@ export async function getTicketContext(id: string) {
   const ticket = await getTicketForContext(id);
   const db = createAdminClient();
 
-  const customerId = ticket.customer_id as string | undefined;
-  const customerFields = customerId
-    ? (await loadCustomFieldsMap(db, "customer", [customerId])).get(customerId) ??
+  const contactId = ticket.contact_id as string | undefined;
+  const contactFields = contactId
+    ? (await loadCustomFieldsMap(db, "contact", [contactId])).get(contactId) ??
       {}
     : {};
 
-  const customerLabel =
+  const contactLabel =
     ticket.contact_address ??
-    ticket.customer?.username ??
+    ticket.contact?.username ??
     "Unknown";
-  const planField = customerFields.plan ?? ticket.custom_fields?.plan;
-  const customerLine = planField
-    ? `**Customer:** ${customerLabel} (Plan: ${planField})`
-    : `**Customer:** ${customerLabel}`;
+  const planField = contactFields.plan ?? ticket.custom_fields?.plan;
+  const contactLine = planField
+    ? `**Contact:** ${contactLabel} (Plan: ${planField})`
+    : `**Contact:** ${contactLabel}`;
 
   const tagNames = ticket.tags.map((t) => t.name).join(", ") || "none";
   const lines: string[] = [
     `# ${ticket.title}`,
     "",
-    customerLine,
+    contactLine,
     `**Status:** ${ticket.status?.name ?? "Unknown"}`,
     `**Tags:** ${tagNames}`,
     "",
@@ -60,11 +60,11 @@ export async function getTicketContext(id: string) {
 
     for (const msg of ticket.messages) {
       let authorName = "System";
-      if (msg.author_type === "customer") {
+      if (msg.author_type === "contact") {
         authorName =
           (ticket.contact_address as string | null) ??
-          ticket.customer?.username ??
-          "Customer";
+          ticket.contact?.username ??
+          "Contact";
       } else if (msg.author_type === "agent" && msg.author_id) {
         authorName = agentNames.get(msg.author_id) ?? "Agent";
       }

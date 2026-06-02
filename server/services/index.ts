@@ -1,5 +1,5 @@
 export * from "./tickets";
-export * from "./customers";
+export * from "./contacts";
 export * from "./statuses";
 export * from "./tags";
 export * from "./settings";

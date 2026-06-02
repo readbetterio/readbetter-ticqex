@@ -24,12 +24,12 @@ export function parseEmailAddress(value: string | null | undefined): string {
 
 export function messageSenderEmail(
   msg: MessageRow,
-  ticket: { contact_address: string | null; customer: { username: string } | null },
+  ticket: { contact_address: string | null; contact: { username: string } | null },
 ): string {
   const from = parseEmailAddress(msg.email_from);
   if (from) return from;
-  if (msg.author_type === "customer") {
-    return ticket.contact_address ?? ticket.customer?.username ?? "Customer";
+  if (msg.author_type === "contact") {
+    return ticket.contact_address ?? ticket.contact?.username ?? "Contact";
   }
   return "Support";
 }

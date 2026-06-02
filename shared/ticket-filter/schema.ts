@@ -15,7 +15,7 @@ export type FilterOperator = (typeof FILTER_OPERATORS)[number];
 
 export const SCALAR_FILTER_FIELDS = [
   "assignee_id",
-  "customer_id",
+  "contact_id",
   "kind",
   "channel",
   "origin",
@@ -41,7 +41,7 @@ const scalarConditionSchema = z
         ctx.addIssue({ code: "custom", message: "value is required" });
         return;
       }
-      if (data.field === "assignee_id" || data.field === "customer_id") {
+      if (data.field === "assignee_id" || data.field === "contact_id") {
         if (!uuidSchema.safeParse(data.value).success) {
           ctx.addIssue({ code: "custom", message: "invalid uuid" });
         }
@@ -58,7 +58,7 @@ const scalarConditionSchema = z
       ctx.addIssue({ code: "custom", message: "values are required" });
       return;
     }
-    if (data.field === "assignee_id" || data.field === "customer_id") {
+    if (data.field === "assignee_id" || data.field === "contact_id") {
       for (const value of data.values) {
         if (!uuidSchema.safeParse(value).success) {
           ctx.addIssue({ code: "custom", message: "invalid uuid in values" });

@@ -54,7 +54,7 @@ export function registerTicketTools(server: McpServer) {
         ...paginationInput,
         status_id: uuid.optional(),
         assignee_id: uuid.optional(),
-        customer_id: uuid.optional(),
+        contact_id: uuid.optional(),
         origin: z.string().optional(),
         kind: z.string().optional(),
         channel: z.string().optional(),
@@ -286,7 +286,7 @@ export function registerTicketTools(server: McpServer) {
     "ticqex_mark_ticket_read",
     {
       title: "Mark Ticket Read",
-      description: "Mark customer messages on a ticket as read for the API-key user.",
+      description: "Mark contact messages on a ticket as read for the API-key user.",
       inputSchema: { ticket_id: uuid },
     },
     async ({ ticket_id }, auth) =>
@@ -298,7 +298,7 @@ export function registerTicketTools(server: McpServer) {
     "ticqex_set_message_read",
     {
       title: "Set Message Read State",
-      description: "Set a customer message read state for the API-key user.",
+      description: "Set a contact message read state for the API-key user.",
       inputSchema: { ticket_id: uuid, message_id: uuid, read: z.boolean().optional() },
     },
     async ({ ticket_id, message_id, read }, auth) => {

@@ -6,10 +6,10 @@ type TicketSummaryBase = {
   id: string;
   title: string;
   origin: TicketOrigin;
-  customer_id: string | null;
+  contact_id: string | null;
   assignee_id: string | null;
   preview: string;
-  customer: { id: string; username: string } | null;
+  contact: { id: string; username: string } | null;
   assignee: { id: string; username: string } | null;
   custom_fields: Record<string, unknown>;
   tags: Tag[];

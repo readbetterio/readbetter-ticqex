@@ -18,7 +18,7 @@ INSERT INTO public.global_settings (
   id,
   visible_status_ids,
   default_inbound_status_id,
-  show_customer_on_ticket,
+  show_contact_on_ticket,
   show_assignee_on_ticket,
   show_body_on_ticket
 )
@@ -34,8 +34,8 @@ SELECT
   true
 WHERE NOT EXISTS (SELECT 1 FROM public.global_settings WHERE id = 1);
 
--- Optional demo tickets/customers/tags.
-INSERT INTO public.customers (username)
+-- Optional demo tickets/contacts/tags.
+INSERT INTO public.contacts (username)
 VALUES ('demo@example.com');
 
 INSERT INTO public.tags (name, color)
@@ -45,7 +45,7 @@ INSERT INTO public.tickets (
   title,
   kind,
   body,
-  customer_id,
+  contact_id,
   status_id,
   origin
 )
@@ -56,7 +56,7 @@ SELECT
   c.id,
   s.id,
   'manual'
-FROM public.customers c
+FROM public.contacts c
 CROSS JOIN public.status_types s
 WHERE c.username = 'demo@example.com'
   AND s.name = 'New'
@@ -67,7 +67,7 @@ INSERT INTO public.tickets (
   kind,
   channel,
   contact_address,
-  customer_id,
+  contact_id,
   status_id,
   origin
 )
@@ -79,7 +79,7 @@ SELECT
   c.id,
   s.id,
   'manual'
-FROM public.customers c
+FROM public.contacts c
 CROSS JOIN public.status_types s
 WHERE c.username = 'demo@example.com'
   AND s.name = 'In Process'
@@ -88,9 +88,9 @@ LIMIT 1;
 INSERT INTO public.messages (ticket_id, body, visibility, author_type, channel)
 SELECT
   t.id,
-  'Thanks for trying Ticqex - this is a sample customer message.',
+  'Thanks for trying Ticqex - this is a sample contact message.',
   'public',
-  'customer',
+  'contact',
   'admin'
 FROM public.tickets t
 WHERE t.title = 'Sample email conversation'

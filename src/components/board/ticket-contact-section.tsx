@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api-client";
 import { usePersistedExpanded } from "@/hooks/use-persisted-expanded";
 
-type CustomerDetail = {
+type ContactDetail = {
   id: string;
   username: string;
   created_at: string;
@@ -28,7 +28,7 @@ type CustomFieldRow = {
   value: unknown;
 };
 
-function customerInitials(name: string): string {
+function contactInitials(name: string): string {
   const parts = name.trim().split(/[\s@._-]+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
@@ -74,21 +74,21 @@ function formatCustomFieldValue(type: string, value: unknown): string {
   }
 }
 
-export function TicketCustomerSection({
-  customerId,
+export function TicketContactSection({
+  contactId,
   displayName,
   contactAddress,
 }: {
-  customerId: string;
+  contactId: string;
   displayName: string;
   contactAddress?: string | null;
 }) {
   const { expanded, toggleExpanded, hydrated } = usePersistedExpanded(
-    "ticqex.ticket-customer.expanded.v1",
+    "ticqex.ticket-contact.expanded.v1",
     false,
   );
   const [showAllFields, setShowAllFields] = useState(false);
-  const [detail, setDetail] = useState<CustomerDetail | null>(null);
+  const [detail, setDetail] = useState<ContactDetail | null>(null);
   const [definitions, setDefinitions] = useState<CustomFieldDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +107,7 @@ export function TicketCustomerSection({
     return () => {
       cancelled = true;
     };
-  }, [customerId]);
+  }, [contactId]);
 
   useEffect(() => {
     if (expanded) return;
@@ -134,18 +134,18 @@ export function TicketCustomerSection({
       setError(null);
 
       void Promise.all([
-        apiFetch<CustomerDetail>(`/api/v1/customers/${customerId}`),
-        apiFetch<CustomFieldDefinition[]>("/api/v1/custom-fields?group=customer"),
+        apiFetch<ContactDetail>(`/api/v1/contacts/${contactId}`),
+        apiFetch<CustomFieldDefinition[]>("/api/v1/custom-fields?group=contact"),
       ])
-        .then(([customer, fields]) => {
+        .then(([contact, fields]) => {
           if (!cancelled) {
-            setDetail(customer);
+            setDetail(contact);
             setDefinitions(fields);
           }
         })
         .catch((e) => {
           if (!cancelled) {
-            setError(e instanceof Error ? e.message : "Failed to load customer");
+            setError(e instanceof Error ? e.message : "Failed to load contact");
           }
         })
         .finally(() => {
@@ -156,7 +156,7 @@ export function TicketCustomerSection({
     return () => {
       cancelled = true;
     };
-  }, [expanded, customerId]);
+  }, [expanded, contactId]);
 
   const showContactAddress =
     contactAddress &&
@@ -190,7 +190,7 @@ export function TicketCustomerSection({
         ) : (
           <ChevronRight className="size-3.5 shrink-0" />
         )}
-        Customer
+        Contact
         {!expanded && (
           <span className="ml-auto min-w-0 truncate text-xs font-normal text-muted-foreground">
             {displayName}
@@ -216,7 +216,7 @@ export function TicketCustomerSection({
               <div className="flex items-center gap-2">
                 <Avatar size="sm">
                   <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
-                    {customerInitials(detail.username)}
+                    {contactInitials(detail.username)}
                   </AvatarFallback>
                 </Avatar>
                 <span className="font-medium text-foreground">
@@ -227,7 +227,7 @@ export function TicketCustomerSection({
               <dl className="space-y-1.5 text-xs">
                 {showContactAddress && (
                   <div className="grid grid-cols-[minmax(5.5rem,8rem)_1fr] gap-x-2">
-                    <dt className="text-muted-foreground">Contact</dt>
+                    <dt className="text-muted-foreground">Email</dt>
                     <dd className="break-all text-foreground">{contactAddress}</dd>
                   </div>
                 )}

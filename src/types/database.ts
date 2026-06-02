@@ -9,7 +9,7 @@ export type MessageDbRow = {
   ticket_id: string;
   body: string;
   visibility: "public" | "internal";
-  author_type: "customer" | "agent" | "system";
+  author_type: "contact" | "agent" | "system";
   author_id: string | null;
   channel: "email" | "api" | "admin";
   email_message_id: string | null;

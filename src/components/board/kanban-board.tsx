@@ -358,8 +358,8 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
               kind: "task",
               title: payload.title,
               ...(payload.body ? { body: payload.body } : {}),
-              ...(payload.customerUsername
-                ? { customer: { username: payload.customerUsername } }
+              ...(payload.contactUsername
+                ? { contact: { username: payload.contactUsername } }
                 : {}),
               ...(payload.statusId ? { status_id: payload.statusId } : {}),
               ...(tagNames.length ? { tags: tagNames } : {}),

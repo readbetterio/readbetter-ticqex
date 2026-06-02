@@ -24,7 +24,7 @@ const CONVERSATION_EXPANDED_KEY = "ticqex.ticket-conversation.expanded.v1";
 
 type EmailConversationTicket = Pick<
   ConversationTicketSummary,
-  "title" | "channel" | "contact_address" | "customer"
+  "title" | "channel" | "contact_address" | "contact"
 > & {
   messages: MessageRow[];
 };
@@ -101,8 +101,8 @@ export function EmailConversationPanel({
     return null;
   }, [ticket.messages]);
 
-  const customerEmail =
-    ticket.contact_address ?? ticket.customer?.username ?? "";
+  const contactEmail =
+    ticket.contact_address ?? ticket.contact?.username ?? "";
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -148,7 +148,7 @@ export function EmailConversationPanel({
         >
           <div className="space-y-3 p-4">
             {messages.map((msg) => {
-            const isIncoming = msg.author_type === "customer";
+            const isIncoming = msg.author_type === "contact";
             const isOutbound = !isIncoming;
             const isUnread = isIncoming && msg.read === false;
 
@@ -215,7 +215,7 @@ export function EmailConversationPanel({
       {ticket.channel === "email" && (
         <EmailReplySection
           ticketId={ticketId}
-          customerEmail={customerEmail}
+          contactEmail={contactEmail}
           ticketTitle={ticket.title}
           lastEmailMessage={lastEmailMessage}
           onSubmit={onSubmit}

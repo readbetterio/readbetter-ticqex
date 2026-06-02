@@ -2,9 +2,9 @@ import type { ScalarFilterField } from "@shared/ticket-filter";
 
 export type Assignee = { id: string; username: string };
 export type Tag = { id: string; name: string; color: string };
-export type Customer = { id: string; username: string };
+export type Contact = { id: string; username: string };
 export type BoardFilterOptions = {
-  customers: Customer[];
+  contacts: Contact[];
   assignees: Assignee[];
   tags: Tag[];
 };

@@ -23,10 +23,10 @@ function dedupeEmails(addresses: string[]): string[] {
 
 function computeReplyCc(
   options: { cc?: string[]; reply_all?: boolean },
-  lastCustomerMessage: MessageDbRow | null,
-  customerEmail: string,
+  lastContactMessage: MessageDbRow | null,
+  contactEmail: string,
 ): string[] {
-  const customer = customerEmail.trim().toLowerCase();
+  const contact = contactEmail.trim().toLowerCase();
   const support = supportEmail().trim().toLowerCase();
 
   if (!options.reply_all) {
@@ -34,17 +34,17 @@ function computeReplyCc(
   }
 
   const merged: string[] = [...(options.cc ?? [])];
-  for (const addr of lastCustomerMessage?.email_cc ?? []) {
+  for (const addr of lastContactMessage?.email_cc ?? []) {
     merged.push(addr);
   }
-  for (const addr of lastCustomerMessage?.email_to ?? []) {
+  for (const addr of lastContactMessage?.email_to ?? []) {
     merged.push(addr);
   }
 
   return dedupeEmails(
     merged.filter((addr) => {
       const normalized = addr.trim().toLowerCase();
-      return normalized && normalized !== customer && normalized !== support;
+      return normalized && normalized !== contact && normalized !== support;
     }),
   );
 }
@@ -68,7 +68,7 @@ export type PreparedAgentOutboundReply = {
 };
 
 export type AgentOutboundReplyContext = {
-  lastCustomerMessage: MessageDbRow | null;
+  lastContactMessage: MessageDbRow | null;
   lastSubjectMessage: MessageDbRow | null;
 };
 
@@ -82,7 +82,7 @@ function prepareAgentReplyHeaders(
     throw ApiError.internal("Ticket contact address not found");
   }
 
-  const { lastCustomerMessage, lastSubjectMessage } = context;
+  const { lastContactMessage, lastSubjectMessage } = context;
 
   return {
     emailTo: [contactEmail],
@@ -91,7 +91,7 @@ function prepareAgentReplyHeaders(
         cc: input.email?.cc,
         reply_all: input.email?.reply_all,
       },
-      lastCustomerMessage,
+      lastContactMessage,
       contactEmail,
     ),
     emailSubject: input.email?.subject
@@ -129,22 +129,22 @@ export async function prepareAgentOutboundReply(
     throw ApiError.internal("Ticket contact address not found");
   }
 
-  const { lastCustomerMessage } = context;
+  const { lastContactMessage } = context;
   const headers = prepareAgentReplyHeaders(ticket, context, input);
 
   let body = input.body;
 
   const effectiveIncludeQuote =
     input.email?.include_quote ??
-    lastCustomerMessage?.channel === "api";
+    lastContactMessage?.channel === "api";
 
-  if (effectiveIncludeQuote && lastCustomerMessage) {
+  if (effectiveIncludeQuote && lastContactMessage) {
     const quoteAuthor =
-      contactEmail ?? String(lastCustomerMessage.email_from ?? "Customer");
+      contactEmail ?? String(lastContactMessage.email_from ?? "Contact");
     body += buildQuotedReply(
-      lastCustomerMessage.body,
+      lastContactMessage.body,
       quoteAuthor,
-      lastCustomerMessage.created_at,
+      lastContactMessage.created_at,
     );
   }
 

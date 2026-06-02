@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { ApiError } from "@server/lib/errors";
+import {
+  CUSTOM_FIELD_TYPES,
+  validateDefinitionOptions,
+} from "@shared/custom-fields";
 
 const emailAddressSchema = z.string().email();
 
@@ -34,7 +38,7 @@ const ticketBaseSchema = z.object({
 export const createTaskTicketSchema = ticketBaseSchema.extend({
   kind: z.literal("task"),
   body: z.string().optional(),
-  customer: z
+  contact: z
     .object({ username: z.string() })
     .optional()
     .transform((c) => {
@@ -64,7 +68,7 @@ export const createTicketMcpInputSchema = z
     ...ticketBaseSchema.shape,
     kind: z.enum(["task", "conversation"]),
     body: z.string().optional(),
-    customer: z
+    contact: z
       .object({ username: z.string() })
       .optional()
       .transform((c) => {
@@ -112,12 +116,12 @@ export const createEmailSnippetSchema = z.object({
   body: z.string().min(1),
 });
 
-export const createCustomerSchema = z.object({
+export const createContactSchema = z.object({
   username: z.string().min(1),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const updateCustomerSchema = z.object({
+export const updateContactSchema = z.object({
   username: z.string().min(1).optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
 });
@@ -194,29 +198,41 @@ export const updateTagSchema = z.object({
   color: z.string().optional(),
 });
 
-export const createCustomFieldSchema = z.object({
-  group: z.enum(["ticket", "customer"]),
-  key: z.string().min(1).regex(/^[a-z][a-z0-9_]*$/),
+const customFieldDefinitionFieldsSchema = z.object({
   label: z.string().min(1),
-  type: z.enum(["text", "number", "date", "boolean", "select", "url", "json"]),
-  options: z.record(z.string(), z.unknown()).optional(),
+  type: z.enum(CUSTOM_FIELD_TYPES),
+  options: z.record(z.string(), z.unknown()).nullable().optional(),
   required: z.boolean().optional(),
   position: z.number().int().optional(),
 });
 
-export const updateCustomFieldSchema = createCustomFieldSchema.partial().omit({
-  group: true,
-  key: true,
+export const createCustomFieldSchema = customFieldDefinitionFieldsSchema
+  .extend({
+    group: z.enum(["ticket", "contact"]),
+    key: z.string().min(1).regex(/^[a-z][a-z0-9_]*$/),
+  })
+  .superRefine((data, ctx) => {
+    const message = validateDefinitionOptions(data.type, data.options ?? null);
+    if (message) {
+      ctx.addIssue({ code: "custom", message, path: ["options"] });
+    }
+  });
+
+export const updateCustomFieldSchema = customFieldDefinitionFieldsSchema.partial();
+
+export const reorderCustomFieldsSchema = z.object({
+  group: z.enum(["ticket", "contact"]),
+  ids: z.array(z.string().uuid()).min(1),
 });
 
 export const patchSettingsSchema = z.object({
   visible_status_ids: z.array(z.string().uuid()).optional(),
   default_inbound_status_id: z.string().uuid().nullable().optional(),
-  show_customer_on_ticket: z.boolean().optional(),
+  show_contact_on_ticket: z.boolean().optional(),
   show_assignee_on_ticket: z.boolean().optional(),
   show_body_on_ticket: z.boolean().optional(),
   visible_ticket_field_ids: z.array(z.string().uuid()).optional(),
-  visible_customer_field_ids: z.array(z.string().uuid()).optional(),
+  visible_contact_field_ids: z.array(z.string().uuid()).optional(),
   email_signature: z.string().optional(),
   email_thread_order: z.enum(["oldest_first", "newest_first"]).optional(),
 });

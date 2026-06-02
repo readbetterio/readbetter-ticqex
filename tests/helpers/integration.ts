@@ -8,6 +8,8 @@ import {
 } from "@shared/board-load-test";
 import { perLaneTicketLimit } from "@shared/board-limits";
 
+export { LOADTEST_TITLE_PREFIX, NEEDLE_SECRET, NEEDLE_TITLE };
+
 export const SEED_ADMIN_EMAIL =
   process.env.SEED_ADMIN_EMAIL ?? "admin@ticqex.local";
 export const SEED_ADMIN_PASSWORD =
@@ -70,21 +72,21 @@ export async function getFirstStatusId(db = adminDb()): Promise<string> {
   return status.id as string;
 }
 
-export async function getFirstCustomerId(db = adminDb()): Promise<string> {
-  const { data: customer, error } = await db
-    .from("customers")
+export async function getFirstContactId(db = adminDb()): Promise<string> {
+  const { data: contact, error } = await db
+    .from("contacts")
     .select("id")
     .limit(1)
     .single();
-  if (error || !customer) throw new Error(error?.message ?? "No customer found");
-  return customer.id as string;
+  if (error || !contact) throw new Error(error?.message ?? "No contact found");
+  return contact.id as string;
 }
 
 export type MinimalTicketInput = {
   title: string;
   kind?: "task" | "conversation";
   status_id?: string;
-  customer_id?: string | null;
+  contact_id?: string | null;
   assignee_id?: string | null;
   channel?: string | null;
   contact_address?: string | null;
@@ -103,7 +105,7 @@ export async function insertMinimalTicket(
       title: input.title,
       kind: input.kind ?? "task",
       status_id: statusId,
-      customer_id: input.customer_id ?? null,
+      contact_id: input.contact_id ?? null,
       assignee_id: input.assignee_id ?? null,
       channel: input.channel ?? null,
       contact_address: input.contact_address ?? null,
@@ -118,7 +120,7 @@ export async function insertMinimalTicket(
   return { id: ticket.id as string };
 }
 
-export async function insertCustomerMessage(
+export async function insertContactMessage(
   ticketId: string,
   body: string,
   db = adminDb(),
@@ -129,7 +131,7 @@ export async function insertCustomerMessage(
       ticket_id: ticketId,
       body,
       visibility: "public",
-      author_type: "customer",
+      author_type: "contact",
       channel: "email",
     })
     .select("id")
@@ -155,7 +157,7 @@ export async function seedMinimalBoardLoad(db = adminDb()): Promise<{
     throw new Error(statusErr?.message ?? "No statuses found");
   }
 
-  const customerId = await getFirstCustomerId(db);
+  const contactId = await getFirstContactId(db);
   const laneCount = statuses.filter(() => true).length;
   const perLane = perLaneTicketLimit(laneCount);
   const bulkCount = perLane + 50;
@@ -195,7 +197,7 @@ export async function seedMinimalBoardLoad(db = adminDb()): Promise<{
       kind: "conversation",
       channel: "email",
       contact_address: `needle-${runId}@example.com`,
-      customer_id: customerId,
+      contact_id: contactId,
       status_id: statusId,
       origin: "manual",
       updated_at: needleUpdatedAt,
@@ -209,9 +211,9 @@ export async function seedMinimalBoardLoad(db = adminDb()): Promise<{
 
   const { error: msgErr } = await db.from("messages").insert({
     ticket_id: needle.id,
-    body: `Customer follow-up with hidden keyword ${NEEDLE_SECRET} buried in the thread.`,
+    body: `Contact follow-up with hidden keyword ${NEEDLE_SECRET} buried in the thread.`,
     visibility: "public",
-    author_type: "customer",
+    author_type: "contact",
     channel: "admin",
   });
   if (msgErr) throw new Error(msgErr.message);
@@ -219,17 +221,11 @@ export async function seedMinimalBoardLoad(db = adminDb()): Promise<{
   const needleId = needle.id as string;
   ticketIds.push(needleId);
 
-  return {
-    ticketIds,
-    needleId,
-    needleTitle,
-    cleanup: async () => {
-      for (let i = 0; i < ticketIds.length; i += batchSize) {
-        const chunk = ticketIds.slice(i, i + batchSize);
-        await db.from("tickets").delete().in("id", chunk);
-      }
-    },
+  const cleanup = async () => {
+    if (ticketIds.length) {
+      await db.from("tickets").delete().in("id", ticketIds);
+    }
   };
-}
 
-export { LOADTEST_TITLE_PREFIX, NEEDLE_SECRET, NEEDLE_TITLE };
+  return { ticketIds, needleId, needleTitle, cleanup };
+}

@@ -43,7 +43,7 @@ export function registerBoardTools(server: McpServer) {
     "ticqex_get_board_filter_options",
     {
       title: "Get Board Filter Options",
-      description: "List customers, assignees, and tags that appear on the visible board.",
+      description: "List contacts, assignees, and tags that appear on the visible board.",
       inputSchema: {},
     },
     async () => toolResult(await getBoardFilterOptions()),

@@ -93,17 +93,17 @@ export async function findTicketByMessageHeaders(
 export async function findTicketBySubjectAndContact(
   subject: string,
   fromEmail: string,
-  customerId: string,
+  contactId: string,
 ) {
   const db = createAdminClient();
   const normalized = normalizeEmailSubject(subject);
-  const contact = fromEmail.trim().toLowerCase();
+  const contactAddress = fromEmail.trim().toLowerCase();
 
   const { data: threadMatch } = await db
     .from("email_threads")
     .select("ticket_id, tickets!inner(id)")
     .eq("subject", normalized)
-    .eq("tickets.customer_id", customerId)
+    .eq("tickets.contact_id", contactId)
     .limit(1)
     .maybeSingle();
 
@@ -114,8 +114,8 @@ export async function findTicketBySubjectAndContact(
     .select("id, title")
     .eq("kind", "conversation")
     .eq("channel", "email")
-    .eq("contact_address", contact)
-    .eq("customer_id", customerId)
+    .eq("contact_address", contactAddress)
+    .eq("contact_id", contactId)
     .order("updated_at", { ascending: false })
     .limit(10);
 

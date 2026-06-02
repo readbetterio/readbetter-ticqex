@@ -16,7 +16,7 @@ import type {
   Assignee,
   BoardFilterOptions,
   CustomFieldDef,
-  Customer,
+  Contact,
   FilterField,
   Tag,
 } from "./filter-types";
@@ -31,7 +31,7 @@ export function useFilterDraft(
   const [customFieldKey, setCustomFieldKey] = useState("");
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
   const [singleValue, setSingleValue] = useState("");
   const [multiValues, setMultiValues] = useState<string[]>([]);
@@ -44,7 +44,7 @@ export function useFilterDraft(
       apiFetch<BoardFilterOptions>("/api/v1/board/filter-options"),
       apiFetch<CustomFieldDef[]>("/api/v1/custom-fields?group=ticket"),
     ]);
-    setCustomers(options.customers);
+    setContacts(options.contacts);
     setAssignees(options.assignees);
     setTags(options.tags);
     setCustomFields(fields);
@@ -70,7 +70,7 @@ export function useFilterDraft(
       : (availableOperators[0] ?? "");
 
   const userLabels = new Map(assignees.map((u) => [u.id, u.username]));
-  const customerLabels = new Map(customers.map((c) => [c.id, c.username]));
+  const contactLabels = new Map(contacts.map((c) => [c.id, c.username]));
   const customFieldLabels = new Map(customFields.map((f) => [f.key, f.label]));
 
   function resetDraft() {
@@ -137,7 +137,7 @@ export function useFilterDraft(
   return {
     loadOptions,
     userLabels,
-    customerLabels,
+    contactLabels,
     customFieldLabels,
     field,
     operator: effectiveOperator,
@@ -148,7 +148,7 @@ export function useFilterDraft(
     showOperator,
     availableOperators,
     assignees,
-    customers,
+    contacts,
     tags,
     singleValue,
     setSingleValue,

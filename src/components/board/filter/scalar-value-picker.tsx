@@ -1,7 +1,7 @@
 import {
-  CustomerFilterCombobox,
-  CustomerFilterMultiCombobox,
-} from "@/components/board/customer-filter-combobox";
+  ContactFilterCombobox,
+  ContactFilterMultiCombobox,
+} from "@/components/board/contact-filter-combobox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -21,7 +21,7 @@ import {
   KIND_OPTIONS,
   ORIGIN_OPTIONS,
   type Assignee,
-  type Customer,
+  type Contact,
 } from "./filter-types";
 import { MultiCheckboxList } from "./multi-checkbox-list";
 
@@ -29,7 +29,7 @@ export function ScalarValuePicker({
   scalarField,
   operator,
   assignees,
-  customers,
+  contacts,
   singleValue,
   onSingleValueChange,
   multiValues,
@@ -39,7 +39,7 @@ export function ScalarValuePicker({
   scalarField: ScalarFilterField;
   operator: FilterOperator | "";
   assignees: Assignee[];
-  customers: Customer[];
+  contacts: Contact[];
   singleValue: string;
   onSingleValueChange: (value: string) => void;
   multiValues: string[];
@@ -59,10 +59,10 @@ export function ScalarValuePicker({
         />
       );
     }
-    if (scalarField === "customer_id") {
+    if (scalarField === "contact_id") {
       return (
-        <CustomerFilterMultiCombobox
-          customers={customers}
+        <ContactFilterMultiCombobox
+          contacts={contacts}
           selected={multiValues}
           onSelectedChange={onMultiValuesChange}
         />
@@ -121,10 +121,10 @@ export function ScalarValuePicker({
     );
   }
 
-  if (scalarField === "customer_id") {
+  if (scalarField === "contact_id") {
     return (
-      <CustomerFilterCombobox
-        customers={customers}
+      <ContactFilterCombobox
+        contacts={contacts}
         value={singleValue}
         onValueChange={onSingleValueChange}
       />

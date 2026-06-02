@@ -38,7 +38,7 @@ export function formatMessageRow(
   readIds?: Set<string>,
   attachmentsMap?: Map<string, MessageAttachmentRow[]>,
 ) {
-  const isIncoming = msg.author_type === "customer";
+  const isIncoming = msg.author_type === "contact";
   const read =
     readIds === undefined
       ? undefined
@@ -160,10 +160,10 @@ export async function enrichTicketMessages(
 
   let readIds: Set<string> | undefined;
   if (userId && rows.length) {
-    const customerIds = rows
-      .filter((m) => m.author_type === "customer")
+    const incomingMessageIds = rows
+      .filter((m) => m.author_type === "contact")
       .map((m) => m.id);
-    readIds = await loadReadMessageIds(customerIds, userId);
+    readIds = await loadReadMessageIds(incomingMessageIds, userId);
   }
 
   return enrichMessages(rows, { readIds, attachmentsMap });
@@ -173,7 +173,7 @@ export type InsertMessageInput = {
   ticketId: string;
   body: string;
   visibility: "public" | "internal";
-  authorType: "customer" | "agent" | "system";
+  authorType: "contact" | "agent" | "system";
   authorId: string | null;
   channel: "email" | "api" | "admin";
   emailMessageId?: string | null;
@@ -218,13 +218,13 @@ async function insertMessage(input: InsertMessageInput): Promise<MessageDbRow> {
 
 async function loadAgentReplyContext(ticketId: string) {
   const db = createAdminClient();
-  const [{ data: lastCustomerMessage }, { data: lastSubjectMessage }] =
+  const [{ data: lastContactMessage }, { data: lastSubjectMessage }] =
     await Promise.all([
       db
         .from("messages")
         .select("*")
         .eq("ticket_id", ticketId)
-        .eq("author_type", "customer")
+        .eq("author_type", "contact")
         .eq("visibility", "public")
         .or(PUBLIC_NON_DRAFT_FILTER)
         .order("created_at", { ascending: false })
@@ -242,7 +242,7 @@ async function loadAgentReplyContext(ticketId: string) {
         .maybeSingle(),
     ]);
 
-  return { lastCustomerMessage, lastSubjectMessage };
+  return { lastContactMessage, lastSubjectMessage };
 }
 
 export async function createAgentReply(
@@ -593,7 +593,7 @@ export async function sendAgentDraft(
   return { message, shouldSendEmail: true };
 }
 
-export type CreateCustomerMessageInput = {
+export type CreateContactMessageInput = {
   body: string;
   authorId: string;
   channel: "email" | "api";
@@ -606,9 +606,9 @@ export type CreateCustomerMessageInput = {
   emailBodyHtml?: string | null;
 };
 
-export async function createCustomerMessage(
+export async function createContactMessage(
   ticketId: string,
-  input: CreateCustomerMessageInput,
+  input: CreateContactMessageInput,
 ) {
   await loadMessageTicket(ticketId);
 
@@ -616,7 +616,7 @@ export async function createCustomerMessage(
     ticketId,
     body: input.body,
     visibility: "public",
-    authorType: "customer",
+    authorType: "contact",
     authorId: input.authorId,
     channel: input.channel,
     emailMessageId: input.emailMessageId
@@ -633,7 +633,7 @@ export async function createCustomerMessage(
   return { message };
 }
 
-export async function createInboundCustomerMessage(
+export async function createInboundContactMessage(
   ticketId: string,
   input: {
     body: string;
@@ -647,7 +647,7 @@ export async function createInboundCustomerMessage(
     emailBodyHtml?: string | null;
   },
 ) {
-  return createCustomerMessage(ticketId, {
+  return createContactMessage(ticketId, {
     body: input.body,
     authorId: input.authorId,
     channel: "email",

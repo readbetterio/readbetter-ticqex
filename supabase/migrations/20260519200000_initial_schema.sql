@@ -6,13 +6,13 @@ CREATE TYPE public.user_role AS ENUM ('admin', 'agent');
 CREATE TYPE public.ticket_kind AS ENUM ('task', 'conversation');
 CREATE TYPE public.ticket_origin AS ENUM ('manual', 'api', 'email');
 CREATE TYPE public.message_visibility AS ENUM ('public', 'internal');
-CREATE TYPE public.message_author_type AS ENUM ('customer', 'agent', 'system');
+CREATE TYPE public.message_author_type AS ENUM ('contact', 'agent', 'system');
 CREATE TYPE public.message_channel AS ENUM ('email', 'api', 'admin');
-CREATE TYPE public.custom_field_group AS ENUM ('ticket', 'customer');
+CREATE TYPE public.custom_field_group AS ENUM ('ticket', 'contact');
 CREATE TYPE public.custom_field_type AS ENUM (
   'text', 'number', 'date', 'boolean', 'select', 'url', 'json'
 );
-CREATE TYPE public.custom_field_entity_type AS ENUM ('ticket', 'customer');
+CREATE TYPE public.custom_field_entity_type AS ENUM ('ticket', 'contact');
 
 -- Staff (extends Supabase Auth)
 CREATE TABLE public.users (
@@ -23,7 +23,7 @@ CREATE TABLE public.users (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.customers (
+CREATE TABLE public.contacts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   username text NOT NULL UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -54,7 +54,7 @@ CREATE TABLE public.tickets (
   body text,
   channel text,
   contact_address text,
-  customer_id uuid REFERENCES public.customers (id) ON DELETE RESTRICT,
+  contact_id uuid REFERENCES public.contacts (id) ON DELETE RESTRICT,
   status_id uuid NOT NULL REFERENCES public.status_types (id) ON DELETE RESTRICT,
   assignee_id uuid REFERENCES public.users (id) ON DELETE SET NULL,
   origin public.ticket_origin NOT NULL DEFAULT 'manual',
@@ -69,13 +69,13 @@ CREATE TABLE public.tickets (
     OR (
       channel IS NOT NULL
       AND contact_address IS NOT NULL
-      AND customer_id IS NOT NULL
+      AND contact_id IS NOT NULL
       AND body IS NULL
     )
   )
 );
 
-CREATE INDEX tickets_customer_id_idx ON public.tickets (customer_id);
+CREATE INDEX tickets_contact_id_idx ON public.tickets (contact_id);
 CREATE INDEX tickets_kind_idx ON public.tickets (kind);
 CREATE INDEX tickets_contact_address_idx ON public.tickets (contact_address)
   WHERE contact_address IS NOT NULL;
@@ -148,11 +148,11 @@ CREATE INDEX custom_field_values_field_text_idx
 CREATE TABLE public.global_settings (
   id int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   visible_status_ids uuid[] NOT NULL DEFAULT '{}',
-  show_customer_on_ticket boolean NOT NULL DEFAULT true,
+  show_contact_on_ticket boolean NOT NULL DEFAULT true,
   show_assignee_on_ticket boolean NOT NULL DEFAULT true,
   show_body_on_ticket boolean NOT NULL DEFAULT true,
   visible_ticket_field_ids uuid[] NOT NULL DEFAULT '{}',
-  visible_customer_field_ids uuid[] NOT NULL DEFAULT '{}',
+  visible_contact_field_ids uuid[] NOT NULL DEFAULT '{}',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -210,8 +210,8 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER customers_updated_at
-  BEFORE UPDATE ON public.customers
+CREATE TRIGGER contacts_updated_at
+  BEFORE UPDATE ON public.contacts
   FOR EACH ROW
   EXECUTE FUNCTION public.set_updated_at();
 
@@ -227,7 +227,7 @@ CREATE TRIGGER global_settings_updated_at
 
 -- RLS: enabled on all tables; service role bypasses RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
@@ -244,7 +244,7 @@ ALTER TABLE public.email_threads ENABLE ROW LEVEL SECURITY;
 CREATE POLICY users_select_authenticated ON public.users
   FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY customers_select_authenticated ON public.customers
+CREATE POLICY contacts_select_authenticated ON public.contacts
   FOR SELECT TO authenticated USING (true);
 
 CREATE POLICY status_types_select_authenticated ON public.status_types

@@ -6,7 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 ![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-orange.svg)
 
-Ticqex treats AI agents as first-class operators: every ticket action is
+Ticqex is an agent-native support ticket management platform. It's a thin data and UX layer for you to collaborate in with any AI agent.
+Ticqex treats AI agents as first-class operators: every action is
 available over a typed REST API (`/api/v1/*`) and an MCP server, so agents can
 triage, respond, and manage tickets — while humans supervise on a realtime
 Kanban board.
@@ -15,6 +16,9 @@ A composable channel and integration layer (registry-based) adapts the platform
 to however support reaches you. Email parsing ships onboard — inbound messages
 are parsed into tickets and replies are delivered via Resend — and new channels
 and providers plug in without touching the core.
+
+Need a custom email provider, Slack, or Teams integration or something built for your custom workflow?
+Simply build a new channel or integration based on a template.
 
 Built on Supabase (Postgres, Auth, and Realtime) and Next.js (App Router), async
 email work runs in-process via Next.js `after()` — no external job runner

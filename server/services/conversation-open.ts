@@ -2,13 +2,13 @@ import { assertChannelFields } from "@server/channels/field-enforcement";
 import { ApiError } from "@server/lib/errors";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ensureEmailThread } from "@server/services/email-threading";
-import { createCustomerMessage } from "@server/services/messages";
+import { createContactMessage } from "@server/services/messages";
 
 export type OpenConversationTicketInput = {
   origin: "api" | "email";
   title: string;
   contactAddress: string;
-  customerId: string;
+  contactId: string;
   statusId: string;
   assigneeId?: string | null;
   threadSubject: string;
@@ -44,7 +44,7 @@ export async function openConversationTicket(
       kind: "conversation",
       channel: "email",
       contact_address: input.contactAddress,
-      customer_id: input.customerId,
+      contact_id: input.contactId,
       status_id: input.statusId,
       assignee_id: input.assigneeId ?? null,
       body: null,
@@ -58,7 +58,7 @@ export async function openConversationTicket(
   const ticketId = ticket.id;
 
   try {
-    const { message } = await createCustomerMessage(ticketId, input.firstMessage);
+    const { message } = await createContactMessage(ticketId, input.firstMessage);
     await ensureEmailThread(ticketId, input.threadSubject, input.rootMessageId);
     return { ticketId, messageId: message.id };
   } catch (err) {

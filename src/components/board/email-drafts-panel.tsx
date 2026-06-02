@@ -67,7 +67,7 @@ function draftToPayload(
 function EmailDraftEditor({
   ticketId,
   draft,
-  customerEmail,
+  contactEmail,
   saving,
   onUpdate,
   onSend,
@@ -76,7 +76,7 @@ function EmailDraftEditor({
 }: {
   ticketId: string;
   draft: MessageRow;
-  customerEmail: string;
+  contactEmail: string;
   saving: boolean;
   onUpdate: (id: string, payload: EmailComposePayload) => Promise<void>;
   onSend: (
@@ -165,7 +165,7 @@ function EmailDraftEditor({
         <Label className="text-xs text-muted-foreground">To</Label>
         <Input
           readOnly
-          value={customerEmail}
+          value={contactEmail}
           className="h-8 cursor-not-allowed bg-background/60 text-xs opacity-70"
         />
       </div>
@@ -280,14 +280,14 @@ function EmailDraftEditor({
 
 export function EmailDraftsPanel({
   ticketId,
-  customerEmail,
+  contactEmail,
   saving,
   onUpdateDraft,
   onSendDraft,
   onDeleteDraft,
 }: {
   ticketId: string;
-  customerEmail: string;
+  contactEmail: string;
   saving: boolean;
   onUpdateDraft: (id: string, payload: EmailComposePayload) => Promise<void>;
   onSendDraft: (
@@ -399,7 +399,7 @@ export function EmailDraftsPanel({
                     <EmailDraftEditor
                       ticketId={ticketId}
                       draft={draft}
-                      customerEmail={customerEmail}
+                      contactEmail={contactEmail}
                       saving={saving}
                       onUpdate={onUpdateDraft}
                       onSend={onSendDraft}

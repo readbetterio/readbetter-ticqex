@@ -32,7 +32,7 @@ export async function resolveSearchTicketIds(
 
   const [
     ticketMatches,
-    customerMatches,
+    contactMatches,
     assigneeMatches,
     tagRows,
     messageMatches,
@@ -46,8 +46,8 @@ export async function resolveSearchTicketIds(
       ),
     db
       .from("tickets")
-      .select("id, customers!inner(username)")
-      .ilike("customers.username", pattern),
+      .select("id, contacts!inner(username)")
+      .ilike("contacts.username", pattern),
     db
       .from("tickets")
       .select("id, users:assignee_id!inner(username)")
@@ -67,14 +67,14 @@ export async function resolveSearchTicketIds(
   ]);
 
   if (ticketMatches.error) throw ApiError.internal(ticketMatches.error.message);
-  if (customerMatches.error) throw ApiError.internal(customerMatches.error.message);
+  if (contactMatches.error) throw ApiError.internal(contactMatches.error.message);
   if (assigneeMatches.error) throw ApiError.internal(assigneeMatches.error.message);
   if (tagRows.error) throw ApiError.internal(tagRows.error.message);
   if (messageMatches.error) throw ApiError.internal(messageMatches.error.message);
   if (fieldMatches.error) throw ApiError.internal(fieldMatches.error.message);
 
   addRows(ids, ticketMatches.data);
-  addRows(ids, customerMatches.data);
+  addRows(ids, contactMatches.data);
   addRows(ids, assigneeMatches.data);
   addRows(
     ids,

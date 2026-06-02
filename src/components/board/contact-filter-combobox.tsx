@@ -19,34 +19,34 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-function customerMatchesSearch(username: string, search: string) {
+function contactMatchesSearch(username: string, search: string) {
   const query = search.trim().toLowerCase();
   if (!query) return true;
   return username.toLowerCase().includes(query);
 }
 
-export type CustomerOption = {
+export type ContactOption = {
   id: string;
   username: string;
 };
 
-export function CustomerFilterCombobox({
-  customers,
+export function ContactFilterCombobox({
+  contacts,
   value,
   onValueChange,
-  placeholder = "Select customer…",
+  placeholder = "Select contact…",
 }: {
-  customers: CustomerOption[];
+  contacts: ContactOption[];
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = customers.find((customer) => customer.id === value);
+  const selected = contacts.find((contact) => contact.id === value);
 
   return (
     <div className="space-y-2">
-      <Label>Customer</Label>
+      <Label>Contact</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -68,29 +68,29 @@ export function CustomerFilterCombobox({
         >
           <Command
             filter={(value, search) =>
-              customerMatchesSearch(value, search) ? 1 : 0
+              contactMatchesSearch(value, search) ? 1 : 0
             }
           >
-            <CommandInput placeholder="Search customers…" />
+            <CommandInput placeholder="Search contacts…" />
             <CommandList>
-              <CommandEmpty>No customer found.</CommandEmpty>
+              <CommandEmpty>No contact found.</CommandEmpty>
               <CommandGroup>
-                {customers.map((customer) => (
+                {contacts.map((contact) => (
                   <CommandItem
-                    key={customer.id}
-                    value={customer.username}
+                    key={contact.id}
+                    value={contact.username}
                     onSelect={() => {
-                      onValueChange(customer.id);
+                      onValueChange(contact.id);
                       setOpen(false);
                     }}
                   >
                     <CheckIcon
                       className={cn(
                         "size-4",
-                        value === customer.id ? "opacity-100" : "opacity-0",
+                        value === contact.id ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    {customer.username}
+                    {contact.username}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -102,23 +102,23 @@ export function CustomerFilterCombobox({
   );
 }
 
-export function CustomerFilterMultiCombobox({
-  customers,
+export function ContactFilterMultiCombobox({
+  contacts,
   selected,
   onSelectedChange,
 }: {
-  customers: CustomerOption[];
+  contacts: ContactOption[];
   selected: string[];
   onSelectedChange: (value: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const selectedLabels = customers
-    .filter((customer) => selected.includes(customer.id))
-    .map((customer) => customer.username);
+  const selectedLabels = contacts
+    .filter((contact) => selected.includes(contact.id))
+    .map((contact) => contact.username);
 
   return (
     <div className="space-y-2">
-      <Label>Customers</Label>
+      <Label>Contacts</Label>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -131,7 +131,7 @@ export function CustomerFilterMultiCombobox({
             <span className="truncate text-left">
               {selectedLabels.length > 0
                 ? selectedLabels.join(", ")
-                : "Select customers…"}
+                : "Select contacts…"}
             </span>
             <CaretDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
           </Button>
@@ -142,24 +142,24 @@ export function CustomerFilterMultiCombobox({
         >
           <Command
             filter={(value, search) =>
-              customerMatchesSearch(value, search) ? 1 : 0
+              contactMatchesSearch(value, search) ? 1 : 0
             }
           >
-            <CommandInput placeholder="Search customers…" />
+            <CommandInput placeholder="Search contacts…" />
             <CommandList>
-              <CommandEmpty>No customer found.</CommandEmpty>
+              <CommandEmpty>No contact found.</CommandEmpty>
               <CommandGroup>
-                {customers.map((customer) => {
-                  const isSelected = selected.includes(customer.id);
+                {contacts.map((contact) => {
+                  const isSelected = selected.includes(contact.id);
                   return (
                     <CommandItem
-                      key={customer.id}
-                      value={customer.username}
+                      key={contact.id}
+                      value={contact.username}
                       onSelect={() => {
                         onSelectedChange(
                           isSelected
-                            ? selected.filter((id) => id !== customer.id)
-                            : [...selected, customer.id],
+                            ? selected.filter((id) => id !== contact.id)
+                            : [...selected, contact.id],
                         );
                       }}
                     >
@@ -169,7 +169,7 @@ export function CustomerFilterMultiCombobox({
                           isSelected ? "opacity-100" : "opacity-0",
                         )}
                       />
-                      {customer.username}
+                      {contact.username}
                     </CommandItem>
                   );
                 })}

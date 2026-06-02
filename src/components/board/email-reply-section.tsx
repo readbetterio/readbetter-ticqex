@@ -6,7 +6,7 @@ import type { EmailComposePayload, MessageRow } from "./types";
 
 export function EmailReplySection({
   ticketId,
-  customerEmail,
+  contactEmail,
   ticketTitle,
   lastEmailMessage,
   saving,
@@ -17,7 +17,7 @@ export function EmailReplySection({
   onDeleteDraft,
 }: {
   ticketId: string;
-  customerEmail: string;
+  contactEmail: string;
   ticketTitle: string;
   lastEmailMessage: MessageRow | null;
   saving: boolean;
@@ -35,7 +35,7 @@ export function EmailReplySection({
     <div className="relative z-10 flex min-h-0 max-h-[min(52vh,30rem)] shrink-0 flex-col overflow-hidden border-t border-border bg-background">
       <EmailDraftsPanel
         ticketId={ticketId}
-        customerEmail={customerEmail}
+        contactEmail={contactEmail}
         saving={saving}
         onUpdateDraft={onUpdateDraft}
         onSendDraft={onSendDraft}
@@ -44,7 +44,7 @@ export function EmailReplySection({
       <div className="min-h-0 flex-1 overflow-hidden">
         <EmailCompose
           ticketId={ticketId}
-          customerEmail={customerEmail}
+          contactEmail={contactEmail}
           ticketTitle={ticketTitle}
           lastEmailMessage={lastEmailMessage}
           onSubmit={onSubmit}

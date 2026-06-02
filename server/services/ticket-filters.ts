@@ -171,7 +171,7 @@ async function evaluateScalarCondition(
   db: SupabaseClient,
   condition: Extract<
     TicketFilterCondition,
-    { field: "assignee_id" | "customer_id" | "kind" | "channel" | "origin" }
+    { field: "assignee_id" | "contact_id" | "kind" | "channel" | "origin" }
   >,
 ): Promise<Set<string>> {
   const column = condition.field;
@@ -205,7 +205,7 @@ async function evaluateCondition(
 
   switch (normalized.field) {
     case "assignee_id":
-    case "customer_id":
+    case "contact_id":
     case "kind":
     case "channel":
     case "origin":

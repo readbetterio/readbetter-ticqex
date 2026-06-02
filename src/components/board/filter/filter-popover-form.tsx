@@ -17,7 +17,7 @@ import { CustomFieldValuePicker } from "./custom-field-value-picker";
 import type {
   Assignee,
   CustomFieldDef,
-  Customer,
+  Contact,
   FilterField,
   Tag,
 } from "./filter-types";
@@ -36,7 +36,7 @@ type FilterPopoverFormProps = {
   onOperatorChange: (operator: FilterOperator) => void;
   availableOperators: FilterOperator[];
   assignees: Assignee[];
-  customers: Customer[];
+  contacts: Contact[];
   tags: Tag[];
   singleValue: string;
   onSingleValueChange: (value: string) => void;
@@ -66,7 +66,7 @@ export function FilterPopoverForm({
   onOperatorChange,
   availableOperators,
   assignees,
-  customers,
+  contacts,
   tags,
   singleValue,
   onSingleValueChange,
@@ -96,7 +96,7 @@ export function FilterPopoverForm({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="assignee_id">Assignee</SelectItem>
-            <SelectItem value="customer_id">Customer</SelectItem>
+            <SelectItem value="contact_id">Contact</SelectItem>
             <SelectItem value="tag">Tag</SelectItem>
             <SelectItem value="kind">Kind</SelectItem>
             <SelectItem value="channel">Channel</SelectItem>
@@ -154,7 +154,7 @@ export function FilterPopoverForm({
             scalarField={field}
             operator={operator}
             assignees={assignees}
-            customers={customers}
+            contacts={contacts}
             singleValue={singleValue}
             onSingleValueChange={onSingleValueChange}
             multiValues={multiValues}

@@ -40,12 +40,12 @@ describeIntegration("API conversation tickets", () => {
     expect(ticket.origin).toBe("api");
     expect(ticket.contact_address).toBe(contactAddress);
 
-    const customerMessages = ticket.messages.filter(
-      (m) => m.author_type === "customer",
+    const contactMessages = ticket.messages.filter(
+      (m) => m.author_type === "contact",
     );
-    expect(customerMessages).toHaveLength(1);
-    expect(customerMessages[0]!.channel).toBe("api");
-    expect(customerMessages[0]!.body).toBe(FORM_BODY);
+    expect(contactMessages).toHaveLength(1);
+    expect(contactMessages[0]!.channel).toBe("api");
+    expect(contactMessages[0]!.body).toBe(FORM_BODY);
 
     const { message: reply } = await createAgentReply(
       ticketId,

@@ -14,7 +14,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiKeyForm, RevokeButton } from "@/components/settings/api-key-form";
-import { CustomFieldForm } from "@/components/settings/custom-field-form";
+import { CustomFieldsSection } from "@/components/settings/custom-fields-section";
 import { EmailThreadOrderSetting } from "@/components/settings/email-thread-order-setting";
 import { EmailSignatureForm } from "@/components/settings/email-signature-form";
 import { EmailSnippetsSection } from "@/components/settings/email-snippets-section";
@@ -26,15 +26,8 @@ import { ThemeSetting } from "@/components/settings/theme-setting";
 import { apiFetch } from "@/lib/api-client";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
-type CustomField = {
-  id: string;
-  group: string;
-  key: string;
-  label: string;
-  type: string;
-};
 type Settings = {
-  show_customer_on_ticket: boolean;
+  show_contact_on_ticket: boolean;
   show_assignee_on_ticket: boolean;
   show_body_on_ticket: boolean;
   email_signature?: string;
@@ -90,7 +83,6 @@ function SettingsLoadingSkeleton() {
 
 export function SettingsPanel() {
   const { user: me, loading: userLoading } = useCurrentUser();
-  const [fields, setFields] = useState<CustomField[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [newKey, setNewKey] = useState<string | null>(null);
@@ -99,11 +91,7 @@ export function SettingsPanel() {
   const load = useCallback(async () => {
     if (!me || me.role !== "admin") return;
     try {
-      const [f, g] = await Promise.all([
-        apiFetch<CustomField[]>("/api/v1/custom-fields"),
-        apiFetch<Settings>("/api/v1/settings"),
-      ]);
-      setFields(f);
+      const g = await apiFetch<Settings>("/api/v1/settings");
       setSettings(g);
       setApiKeys(await apiFetch<ApiKey[]>("/api/v1/api-keys"));
     } catch (e) {
@@ -299,16 +287,13 @@ export function SettingsPanel() {
       <Card>
         <CardHeader>
           <CardTitle>Custom fields</CardTitle>
+          <CardDescription>
+            Define typed metadata fields for tickets and contacts. Values are
+            set through the API and MCP agents.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <CustomFieldForm onCreated={load} />
-          <ul className="space-y-1 text-sm text-muted-foreground">
-            {fields.map((f) => (
-              <li key={f.id}>
-                [{f.group}] {f.label} ({f.key}) — {f.type}
-              </li>
-            ))}
-          </ul>
+        <CardContent>
+          <CustomFieldsSection />
         </CardContent>
       </Card>
 

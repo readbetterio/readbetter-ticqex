@@ -35,7 +35,7 @@ export function getScalarOperators(field: ScalarFilterField): FilterOperator[] {
     case "origin":
       return ["eq", "neq", "in", "nin"];
     case "assignee_id":
-    case "customer_id":
+    case "contact_id":
     case "channel":
       return ["eq", "neq", "in", "nin", "empty", "not_empty"];
     default:
@@ -82,7 +82,7 @@ export function operatorNeedsValue(op: FilterOperator | "any"): boolean {
 
 const FIELD_LABELS: Record<string, string> = {
   assignee_id: "Assignee",
-  customer_id: "Customer",
+  contact_id: "Contact",
   kind: "Kind",
   channel: "Channel",
   origin: "Origin",
@@ -104,7 +104,7 @@ export function formatFilterConditionLabel(
   condition: TicketFilterCondition,
   labels: {
     users?: Map<string, string>;
-    customers?: Map<string, string>;
+    contacts?: Map<string, string>;
     customFields?: Map<string, string>;
   } = {},
 ): string {
@@ -127,17 +127,17 @@ export function formatFilterConditionLabel(
         return `${fieldLabel} ${opLabel} ${names.join(", ")}`;
       }
       return `${fieldLabel} ${opLabel} ${labels.users?.get(normalized.value!) ?? normalized.value}`;
-    case "customer_id":
+    case "contact_id":
       if (normalized.op === "empty" || normalized.op === "not_empty") {
         return `${fieldLabel} ${opLabel}`;
       }
       if (operatorNeedsValues(normalized.op)) {
         const names = (normalized.values ?? []).map(
-          (id) => labels.customers?.get(id) ?? id,
+          (id) => labels.contacts?.get(id) ?? id,
         );
         return `${fieldLabel} ${opLabel} ${names.join(", ")}`;
       }
-      return `${fieldLabel} ${opLabel} ${labels.customers?.get(normalized.value!) ?? normalized.value}`;
+      return `${fieldLabel} ${opLabel} ${labels.contacts?.get(normalized.value!) ?? normalized.value}`;
     case "kind":
       if (operatorNeedsValues(normalized.op)) {
         return `${fieldLabel} ${opLabel} ${(normalized.values ?? []).map(formatKindValue).join(", ")}`;

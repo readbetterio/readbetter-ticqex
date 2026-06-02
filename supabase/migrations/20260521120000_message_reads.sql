@@ -1,4 +1,4 @@
--- Per-user read state for incoming (customer) messages
+-- Per-user read state for incoming (contact) messages
 
 CREATE TABLE public.message_reads (
   user_id uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,

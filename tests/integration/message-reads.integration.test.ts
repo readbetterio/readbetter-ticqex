@@ -8,9 +8,9 @@ import {
 import {
   adminDb,
   describeIntegration,
-  getFirstCustomerId,
+  getFirstContactId,
   getFirstStatusId,
-  insertCustomerMessage,
+  insertContactMessage,
   insertMinimalTicket,
   signInAsSeedAdmin,
 } from "../helpers/integration";
@@ -29,14 +29,14 @@ describeIntegration("message reads", () => {
     userId = session.userId;
     const db = adminDb();
     const statusId = await getFirstStatusId(db);
-    const customerId = await getFirstCustomerId(db);
+    const contactId = await getFirstContactId(db);
 
     const ticket = await insertMinimalTicket(
       {
         title: "Read/unread integration test",
         kind: "conversation",
         status_id: statusId,
-        customer_id: customerId,
+        contact_id: contactId,
         channel: "email",
         contact_address: "read-test@ticqex.local",
         origin: "manual",
@@ -45,9 +45,9 @@ describeIntegration("message reads", () => {
     );
     ticketId = ticket.id;
 
-    const message = await insertCustomerMessage(
+    const message = await insertContactMessage(
       ticketId,
-      "Unread customer reply for integration test",
+      "Unread contact reply for integration test",
       db,
     );
     messageId = message.id;

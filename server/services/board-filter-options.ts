@@ -3,7 +3,7 @@ import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { getVisibleStatusIds } from "@server/services/statuses";
 
-export type BoardFilterOptionCustomer = {
+export type BoardFilterOptionContact = {
   id: string;
   username: string;
 };
@@ -36,25 +36,25 @@ export async function getBoardFilterOptions() {
   const visibleStatusIds = await getVisibleStatusIds(db);
 
   if (!visibleStatusIds.length) {
-    return { customers: [], assignees: [], tags: [] };
+    return { contacts: [], assignees: [], tags: [] };
   }
 
   const { data: tickets, error: ticketErr } = await db
     .from("tickets")
     .select(
-      "id, customer_id, assignee_id, customers(id, username), users:assignee_id(id, username)",
+      "id, contact_id, assignee_id, contacts(id, username), users:assignee_id(id, username)",
     )
     .in("status_id", visibleStatusIds);
 
   if (ticketErr) throw ApiError.internal(ticketErr.message);
 
-  const customerMap = new Map<string, BoardFilterOptionCustomer>();
+  const contactMap = new Map<string, BoardFilterOptionContact>();
   const assigneeMap = new Map<string, BoardFilterOptionAssignee>();
 
   for (const ticket of tickets ?? []) {
-    const customer = ticket.customers as unknown as BoardFilterOptionCustomer | null;
-    if (customer?.id) {
-      customerMap.set(customer.id, customer);
+    const contact = ticket.contacts as unknown as BoardFilterOptionContact | null;
+    if (contact?.id) {
+      contactMap.set(contact.id, contact);
     }
 
     const assignee = ticket.users as unknown as BoardFilterOptionAssignee | null;
@@ -83,7 +83,7 @@ export async function getBoardFilterOptions() {
   }
 
   return {
-    customers: sortByUsername([...customerMap.values()]),
+    contacts: sortByUsername([...contactMap.values()]),
     assignees: sortByUsername([...assigneeMap.values()]),
     tags: sortByName([...tagMap.values()]),
   };

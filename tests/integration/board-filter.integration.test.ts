@@ -90,7 +90,7 @@ describeIntegration("board filter", () => {
         channel: null,
         origin: "manual",
         assignee_id: userId,
-        customer_id: null,
+        contact_id: null,
         custom_fields: {},
         tags: [],
         unread_count: 0,

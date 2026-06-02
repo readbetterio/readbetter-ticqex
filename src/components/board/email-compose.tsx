@@ -37,7 +37,7 @@ import { formatBytes, formatReplySubject } from "./email-utils";
 
 export function EmailCompose({
   ticketId,
-  customerEmail,
+  contactEmail,
   ticketTitle,
   lastEmailMessage,
   onSubmit,
@@ -45,7 +45,7 @@ export function EmailCompose({
   saving,
 }: {
   ticketId: string;
-  customerEmail: string;
+  contactEmail: string;
   ticketTitle: string;
   lastEmailMessage: MessageRow | null;
   onSubmit: (payload: EmailComposePayload) => Promise<void>;
@@ -200,7 +200,7 @@ export function EmailCompose({
 
         <div className="space-y-2">
           <Label>To</Label>
-          <Input readOnly value={customerEmail} className="cursor-not-allowed opacity-70" />
+          <Input readOnly value={contactEmail} className="cursor-not-allowed opacity-70" />
         </div>
 
         <div className="space-y-2">

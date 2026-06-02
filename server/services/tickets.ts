@@ -8,7 +8,7 @@ import {
   TICKET_LIST_SELECT,
   type TicketListRow,
 } from "@server/domain/ticket";
-import { findOrCreateCustomer } from "@server/services/customers";
+import { findOrCreateContact } from "@server/services/contacts";
 import { getDefaultStatusId, getInboundEmailStatusId } from "@server/services/statuses";
 import {
   filterTicketIdsByCustomFields,
@@ -62,7 +62,7 @@ export async function listTickets(
 
   const statusId = searchParams.get("status_id");
   const assigneeId = searchParams.get("assignee_id");
-  const customerId = searchParams.get("customer_id");
+  const contactId = searchParams.get("contact_id");
   const origin = searchParams.get("origin");
   const kind = searchParams.get("kind");
   const channel = searchParams.get("channel");
@@ -70,7 +70,7 @@ export async function listTickets(
 
   if (statusId) query = query.eq("status_id", statusId);
   if (assigneeId) query = query.eq("assignee_id", assigneeId);
-  if (customerId) query = query.eq("customer_id", customerId);
+  if (contactId) query = query.eq("contact_id", contactId);
   if (origin) query = query.eq("origin", origin);
   if (kind) query = query.eq("kind", kind);
   if (channel) query = query.eq("channel", channel);
@@ -124,13 +124,13 @@ function formatTicketListItem(
     channel: t.channel ?? null,
     contact_address: t.contact_address ?? null,
     origin: t.origin,
-    customer_id: t.customer_id,
+    contact_id: t.contact_id,
     status_id: t.status_id,
     assignee_id: t.assignee_id,
     created_at: t.created_at,
     updated_at: t.updated_at,
-    customer: t.customers
-      ? { id: t.customers.id, username: t.customers.username }
+    contact: t.contacts
+      ? { id: t.contacts.id, username: t.contacts.username }
       : null,
     assignee: t.users
       ? { id: t.users.id, username: t.users.username }
@@ -154,7 +154,7 @@ export async function getTicketSummary(id: string, userId?: string) {
   const { data, error } = await db
     .from("tickets")
     .select(
-      "*, customers(id, username), users:assignee_id(id, username, email), status_types(id, name, color)",
+      "*, contacts(id, username), users:assignee_id(id, username, email), status_types(id, name, color)",
     )
     .eq("id", id)
     .single();
@@ -206,7 +206,7 @@ export async function getTicketForContext(id: string) {
   const { data, error } = await db
     .from("tickets")
     .select(
-      "id, title, kind, body, contact_address, customer_id, customers(id, username), status_types(id, name)",
+      "id, title, kind, body, contact_address, contact_id, contacts(id, username), status_types(id, name)",
     )
     .eq("id", id)
     .single();
@@ -219,8 +219,8 @@ export async function getTicketForContext(id: string) {
     kind: TicketListRow["kind"];
     body: string | null;
     contact_address: string | null;
-    customer_id: string | null;
-    customers: TicketListRow["customers"];
+    contact_id: string | null;
+    contacts: TicketListRow["contacts"];
     status_types: { id: string; name: string } | null;
   };
 
@@ -233,9 +233,9 @@ export async function getTicketForContext(id: string) {
     kind: row.kind,
     body: row.body ?? null,
     contact_address: row.contact_address ?? null,
-    customer_id: row.customer_id,
-    customer: row.customers
-      ? { id: row.customers.id, username: row.customers.username }
+    contact_id: row.contact_id,
+    contact: row.contacts
+      ? { id: row.contacts.id, username: row.contacts.username }
       : null,
     status: row.status_types,
     custom_fields: fieldsMap.get(id) ?? {},
@@ -271,8 +271,8 @@ async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task"
   const statusId =
     input.status_id?.trim() || (await getDefaultStatusId());
 
-  const customerId = input.customer?.username
-    ? (await findOrCreateCustomer(input.customer.username)).id
+  const contactId = input.contact?.username
+    ? (await findOrCreateContact(input.contact.username)).id
     : null;
 
   const { data: ticket, error } = await db
@@ -281,7 +281,7 @@ async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task"
       title: input.title,
       kind: "task",
       body: input.body?.trim() || null,
-      customer_id: customerId,
+      contact_id: contactId,
       status_id: statusId,
       assignee_id: input.assignee_id ?? null,
       origin: input.origin ?? "manual",
@@ -304,7 +304,7 @@ async function createConversationTicket(
   void _auth;
   const db = createAdminClient();
   const contactAddress = input.contact_address.trim().toLowerCase();
-  const customer = await findOrCreateCustomer(contactAddress);
+  const contact = await findOrCreateContact(contactAddress);
   const statusId =
     input.status_id?.trim() || (await getInboundEmailStatusId());
 
@@ -312,13 +312,13 @@ async function createConversationTicket(
     origin: "api",
     title: input.title,
     contactAddress,
-    customerId: customer.id,
+    contactId: contact.id,
     statusId,
     assigneeId: input.assignee_id ?? null,
     threadSubject: input.title,
     firstMessage: {
       body: input.message.body,
-      authorId: customer.id,
+      authorId: contact.id,
       channel: "api",
     },
   });

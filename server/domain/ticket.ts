@@ -9,7 +9,7 @@ export type TicketKind = "task" | "conversation";
 export type TicketChannel = "email";
 
 /** Nested shapes from `tickets` list/detail select with joins. */
-export type TicketListCustomer = {
+export type TicketListContact = {
   id: string;
   username: string;
 };
@@ -26,7 +26,7 @@ export type TicketListStatus = {
   color: string;
 };
 
-/** Row shape for `*, customers(...), users:assignee_id(...), status_types(...)`. */
+/** Row shape for `*, contacts(...), users:assignee_id(...), status_types(...)`. */
 export type TicketListRow = {
   id: string;
   title: string;
@@ -34,19 +34,19 @@ export type TicketListRow = {
   body: string | null;
   channel: string | null;
   contact_address: string | null;
-  customer_id: string | null;
+  contact_id: string | null;
   status_id: string;
   assignee_id: string | null;
   origin: TicketOrigin;
   created_at: string;
   updated_at: string;
-  customers: TicketListCustomer | null;
+  contacts: TicketListContact | null;
   users: TicketListAssignee | null;
   status_types: TicketListStatus | null;
 };
 
 export const TICKET_LIST_SELECT =
-  "*, customers(id, username), users:assignee_id(id, username), status_types(id, name, color)";
+  "*, contacts(id, username), users:assignee_id(id, username), status_types(id, name, color)";
 
 /** Row shape for board lane ticket select (preview enrichment input). */
 export type BoardTicketRow = {
@@ -55,19 +55,19 @@ export type BoardTicketRow = {
   kind: TicketKind;
   channel: string | null;
   origin: TicketOrigin;
-  customer_id: string | null;
+  contact_id: string | null;
   status_id: string;
   assignee_id: string | null;
   body: string | null;
   contact_address: string | null;
   created_at: string;
   updated_at: string;
-  customers: { id: string; username: string } | null;
+  contacts: { id: string; username: string } | null;
   users: { id: string; username: string } | null;
 };
 
 export const BOARD_TICKET_SELECT =
-  "id, title, kind, channel, origin, customer_id, status_id, assignee_id, body, contact_address, created_at, updated_at, customers(id, username), users:assignee_id(id, username)";
+  "id, title, kind, channel, origin, contact_id, status_id, assignee_id, body, contact_address, created_at, updated_at, contacts(id, username), users:assignee_id(id, username)";
 
 export type TicketRow = {
   id: string;
@@ -75,7 +75,7 @@ export type TicketRow = {
   body: string | null;
   channel: string | null;
   contact_address: string | null;
-  customer_id: string | null;
+  contact_id: string | null;
   status_id: string;
   title: string;
   origin?: TicketOrigin;
@@ -104,7 +104,7 @@ export async function loadTicketRow(id: string): Promise<TicketRow> {
   const { data, error } = await db
     .from("tickets")
     .select(
-      "id, kind, body, channel, contact_address, customer_id, status_id, title, origin",
+      "id, kind, body, channel, contact_address, contact_id, status_id, title, origin",
     )
     .eq("id", id)
     .single();

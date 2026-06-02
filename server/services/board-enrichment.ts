@@ -51,8 +51,8 @@ export async function enrichTicketsForBoard(
   return ticketRows.map((t) => {
     const tags = tagsMap.get(t.id) ?? [];
     const custom_fields = fieldsMap.get(t.id) ?? {};
-    const customer = t.customers
-      ? { username: t.customers.username, initials: initials(t.customers.username) }
+    const contact = t.contacts
+      ? { username: t.contacts.username, initials: initials(t.contacts.username) }
       : null;
     const assignee = t.users
       ? { username: t.users.username, initials: initials(t.users.username) }
@@ -74,10 +74,10 @@ export async function enrichTicketsForBoard(
       kind: t.kind,
       channel: t.channel ?? null,
       origin: t.origin,
-      customer_id: t.customer_id,
+      contact_id: t.contact_id,
       assignee_id: t.assignee_id,
       preview,
-      customer,
+      contact,
       assignee,
       custom_fields,
       tags,

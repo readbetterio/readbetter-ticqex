@@ -125,7 +125,7 @@ args = [
           </code>
           <p className="text-sm text-muted-foreground">
             The MCP server exposes the same core operations as the Ticqex API:
-            tickets, board, customers, settings, tags, statuses, custom fields,
+            tickets, board, contacts, settings, tags, statuses, custom fields,
             snippets, users, and API keys.
             Create or copy an API key from the API keys section above, then use
             it as the bearer token in your MCP client.

@@ -19,10 +19,10 @@ type BoardTicketBase = {
   id: string;
   title: string;
   origin: TicketOrigin;
-  customer_id: string | null;
+  contact_id: string | null;
   assignee_id: string | null;
   preview: string;
-  customer: { username: string; initials: string } | null;
+  contact: { username: string; initials: string } | null;
   assignee: { username: string; initials: string } | null;
   custom_fields: Record<string, unknown>;
   tags: { id: string; name: string; color: string }[];

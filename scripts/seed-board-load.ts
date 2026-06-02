@@ -67,13 +67,13 @@ async function main() {
     process.exit(1);
   }
 
-  const { data: customer, error: customerErr } = await db
-    .from("customers")
+  const { data: contact, error: contactErr } = await db
+    .from("contacts")
     .select("id")
     .limit(1)
     .maybeSingle();
-  if (customerErr || !customer) {
-    console.error("Need at least one customer:", customerErr?.message);
+  if (contactErr || !contact) {
+    console.error("Need at least one contact:", contactErr?.message);
     process.exit(1);
   }
 
@@ -116,7 +116,7 @@ async function main() {
       kind: "conversation",
       channel: "email",
       contact_address: "needle@example.com",
-      customer_id: customer.id,
+      contact_id: contact.id,
       status_id: doneStatus,
       origin: "manual",
       updated_at: needleUpdatedAt,
@@ -132,9 +132,9 @@ async function main() {
 
   const { error: msgErr } = await db.from("messages").insert({
     ticket_id: needle.id,
-    body: `Customer follow-up with hidden keyword ${NEEDLE_SECRET} buried in the thread.`,
+    body: `Contact follow-up with hidden keyword ${NEEDLE_SECRET} buried in the thread.`,
     visibility: "public",
-    author_type: "customer",
+    author_type: "contact",
     channel: "admin",
   });
   if (msgErr) {

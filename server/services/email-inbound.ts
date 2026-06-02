@@ -4,9 +4,9 @@ import {
 } from "@server/services/message-external-refs";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { normalizeEmailSubject, normalizeMessageId } from "@server/lib/utils";
-import { findOrCreateCustomer } from "@server/services/customers";
+import { findOrCreateContact } from "@server/services/contacts";
 import { getInboundEmailStatusId } from "@server/services/statuses";
-import { createInboundCustomerMessage } from "@server/services/messages";
+import { createInboundContactMessage } from "@server/services/messages";
 import { openConversationTicket } from "@server/services/conversation-open";
 import {
   ensureEmailThread,
@@ -98,7 +98,7 @@ export async function processInboundEmail(parsed: ParsedEmail) {
     };
   }
 
-  const customer = await findOrCreateCustomer(parsed.from);
+  const contact = await findOrCreateContact(parsed.from);
 
   let ticketId = await findTicketByMessageHeaders(
     parsed.inReplyTo,
@@ -108,7 +108,7 @@ export async function processInboundEmail(parsed: ParsedEmail) {
     ticketId = await findTicketBySubjectAndContact(
       parsed.subject,
       parsed.from,
-      customer.id,
+      contact.id,
     );
   }
 
@@ -124,13 +124,13 @@ export async function processInboundEmail(parsed: ParsedEmail) {
       origin: "email",
       title,
       contactAddress,
-      customerId: customer.id,
+      contactId: contact.id,
       statusId,
       threadSubject: parsed.subject,
       rootMessageId: parsed.messageId,
       firstMessage: {
         body: parsed.body,
-        authorId: customer.id,
+        authorId: contact.id,
         channel: "email",
         emailMessageId: parsed.messageId ?? null,
         emailInReplyTo: parsed.inReplyTo ?? null,
@@ -145,9 +145,9 @@ export async function processInboundEmail(parsed: ParsedEmail) {
     messageId = opened.messageId;
   } else {
     await ensureEmailThread(ticketId, parsed.subject, parsed.messageId);
-    const { message } = await createInboundCustomerMessage(ticketId, {
+    const { message } = await createInboundContactMessage(ticketId, {
       body: parsed.body,
-      authorId: customer.id,
+      authorId: contact.id,
       emailMessageId: parsed.messageId,
       emailInReplyTo: parsed.inReplyTo,
       emailFrom: formatInboundFrom(parsed),

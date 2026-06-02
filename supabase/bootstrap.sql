@@ -15,7 +15,7 @@ INSERT INTO public.global_settings (
   id,
   visible_status_ids,
   default_inbound_status_id,
-  show_customer_on_ticket,
+  show_contact_on_ticket,
   show_assignee_on_ticket,
   show_body_on_ticket
 )

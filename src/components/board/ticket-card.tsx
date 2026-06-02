@@ -91,10 +91,10 @@ function TicketCardContent({
         )}
         <div className="flex items-center justify-between">
           <AvatarGroup>
-            {ticket.customer && (
-              <Avatar size="sm" title={ticket.customer.username}>
+            {ticket.contact && (
+              <Avatar size="sm" title={ticket.contact.username}>
                 <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
-                  {ticket.customer.initials}
+                  {ticket.contact.initials}
                 </AvatarFallback>
               </Avatar>
             )}

@@ -30,7 +30,7 @@ runner.
 |------|---------|
 | `src/app/` | Next.js App Router — admin UI, API routes (`/api/v1/*`), webhooks, MCP |
 | `src/components/` | React components (board, settings, account) |
-| `server/services/` | Business logic (tickets, board, messages, customers, …) |
+| `server/services/` | Business logic (tickets, board, messages, contacts, …) |
 | `server/channels/` | Product channel behavior (email today) |
 | `server/integrations/` | External providers (Resend) |
 | `server/lib/`, `server/middleware/` | Route handlers, auth, validation, errors |
