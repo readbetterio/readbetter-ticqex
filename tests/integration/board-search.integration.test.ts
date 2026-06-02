@@ -10,7 +10,7 @@ import {
   NEEDLE_SECRET,
   seedMinimalBoardLoad,
   signInAsSeedAdmin,
-} from "../../tests/helpers/integration";
+} from "../helpers/integration";
 
 function boardTicketIds(data: Awaited<ReturnType<typeof getBoard>>): string[] {
   return data.lanes.flatMap((lane) => lane.tickets.map((t) => t.id));

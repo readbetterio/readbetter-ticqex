@@ -91,19 +91,16 @@ Async email processing uses Next.js `after()` — no external job runner require
 | `pnpm config:check` | Validate `config/ticqex.config.json` bindings and required env vars |
 | `pnpm config:sync` | Validate activation JSON and print planned channel field sync (dry-run) |
 | `pnpm env:verify` | Check Supabase env vars (`pnpm db:env`); use `config:check` for email/Resend |
-| `pnpm test` / `test:unit` / `test:integration` | Vitest suite (unit: no DB; integration: local Supabase + seed admin) |
+| `pnpm test` / `test:unit` / `test:integration` | Vitest under `tests/` (unit: no DB; integration: local Supabase + seed admin) |
 | `pnpm db:start` / `db:stop` / `db:reset` | Local Supabase |
 | `pnpm db:bootstrap` | Required statuses + settings (empty board) |
 | `pnpm db:env` | Sync Supabase keys → `.env.local` |
 | `pnpm db:seed-admin` | Optional: create local admin user |
-| `pnpm test` | Run all Vitest projects (unit + integration) |
-| `pnpm test:unit` | Fast unit tests (no database) |
-| `pnpm test:integration` | Service-level tests (requires local Supabase; see below) |
 | `pnpm seed:board-load` | Optional: large board dataset for manual load testing |
 
 ### Tests
 
-Unit tests run without Supabase. Integration tests call `server/services` directly (not HTTP), except the MCP route test which needs a dev server on `LOCAL_APP_URL` (default `http://127.0.0.1:3000`).
+All tests live under `tests/unit/` and `tests/integration/` (shared helpers in `tests/helpers/`). Unit tests run without Supabase. Integration tests call `server/services` directly (not HTTP), except the MCP route test which needs a dev server on `LOCAL_APP_URL` (default `http://127.0.0.1:3000`).
 
 ```bash
 pnpm test:unit
@@ -122,6 +119,7 @@ Set `SKIP_MCP_INTEGRATION=1` to skip the MCP HTTP test when `pnpm dev` is not ru
 | `server/integrations/` | External provider integrations (Resend) |
 | `config/` | OSS activation config (`ticqex.config.json` — version-controlled; `ticqex.config.example.json` is the bootstrap template) |
 | `supabase/migrations/` | Database schema |
+| `tests/` | Vitest unit + integration tests |
 
 ## License
 

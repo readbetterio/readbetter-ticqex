@@ -5,7 +5,7 @@ import {
   describeIntegration,
   getFirstStatusId,
   signInAsSeedAdmin,
-} from "../../tests/helpers/integration";
+} from "../helpers/integration";
 
 describeIntegration("ticket delete", () => {
   let ticketId: string | null = null;

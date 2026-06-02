@@ -7,7 +7,7 @@ import {
   describeIntegration,
   staffAuth,
   signInAsSeedAdmin,
-} from "../../tests/helpers/integration";
+} from "../helpers/integration";
 
 const FORM_BODY = "I was charged twice for my subscription.";
 const AGENT_BODY = "Thanks for reaching out — we're looking into this.";

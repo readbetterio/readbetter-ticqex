@@ -2,7 +2,7 @@ import { expect } from "vitest";
 import { getBoard } from "@server/services/board";
 import { moveTicketOnBoard } from "@server/services/board-move";
 import { setLaneOrder } from "@server/services/board-lane-orders";
-import { describeIntegration, signInAsSeedAdmin } from "../../tests/helpers/integration";
+import { describeIntegration, signInAsSeedAdmin } from "../helpers/integration";
 
 describeIntegration("board sort", () => {
   it("applies created_at, manual, and cross-lane ordering", async () => {

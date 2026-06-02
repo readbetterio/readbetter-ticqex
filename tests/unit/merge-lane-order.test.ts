@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   mergeFilteredLaneOrder,
   mergeFilteredLaneOrderWithRemoval,
-} from "./merge-lane-order";
+} from "@shared/board-sort/merge-lane-order";
 
 describe("mergeFilteredLaneOrder", () => {
   it("reorders visible tickets while preserving hidden slots", () => {

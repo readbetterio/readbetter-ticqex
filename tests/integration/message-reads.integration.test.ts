@@ -13,7 +13,7 @@ import {
   insertCustomerMessage,
   insertMinimalTicket,
   signInAsSeedAdmin,
-} from "../../tests/helpers/integration";
+} from "../helpers/integration";
 
 describeIntegration("message reads", () => {
   let ticketId: string;

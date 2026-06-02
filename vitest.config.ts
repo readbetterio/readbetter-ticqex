@@ -1,8 +1,9 @@
 import { defineConfig } from "vitest/config";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     globals: true,
     projects: [
@@ -10,17 +11,15 @@ export default defineConfig({
         extends: true,
         test: {
           name: "unit",
-          include: ["{src,server,shared}/**/*.test.ts"],
-          exclude: ["**/*.integration.test.ts", "node_modules/**"],
+          include: ["tests/unit/**/*.test.ts"],
+          exclude: ["node_modules/**"],
         },
       },
       {
         extends: true,
         test: {
           name: "integration",
-          include: [
-            "{src,server,shared,tests}/**/*.integration.test.ts",
-          ],
+          include: ["tests/integration/**/*.integration.test.ts"],
           exclude: ["node_modules/**"],
           setupFiles: ["tests/setup.integration.ts"],
           fileParallelism: false,

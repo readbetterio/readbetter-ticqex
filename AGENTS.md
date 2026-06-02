@@ -231,4 +231,4 @@ When implementing features in this cloud VM, **be proactive** — do not stop at
   - For API-only changes, call the routes with a real JWT (see scripts under `scripts/`).
 5. **Report what you ran** — In the PR or final message, state that migrations were applied locally and which tests passed.
 
-Add Vitest tests (`*.test.ts` for unit, `*.integration.test.ts` for local Supabase) when a feature needs repeatable verification.
+Add Vitest tests under `tests/unit/` or `tests/integration/` when a feature needs repeatable verification.

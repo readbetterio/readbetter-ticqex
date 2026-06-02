@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyTicketDrop } from "./board-dnd-utils";
-import type { BoardLane, BoardTicket } from "./types";
+import { applyTicketDrop } from "@/components/board/board-dnd-utils";
+import type { BoardLane, BoardTicket } from "@/components/board/types";
 
 function ticket(id: string): BoardTicket {
   return {
