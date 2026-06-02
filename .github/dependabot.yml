@@ -9,6 +9,14 @@ updates:
       # Batch low-risk dev/tooling and type bumps into a single PR.
       dev-dependencies:
         dependency-type: development
+    ignore:
+      # ESLint 10 breaks eslint-config-next's bundled eslint-plugin-react;
+      # TypeScript majors need a deliberate, tested upgrade. Hold both until
+      # the Next.js lint stack supports them.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     labels:
       - dependencies
 
