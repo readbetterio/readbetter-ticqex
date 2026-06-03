@@ -14,10 +14,7 @@ WHERE NOT EXISTS (SELECT 1 FROM public.status_types);
 INSERT INTO public.global_settings (
   id,
   visible_status_ids,
-  default_inbound_status_id,
-  show_contact_on_ticket,
-  show_assignee_on_ticket,
-  show_body_on_ticket
+  default_inbound_status_id
 )
 SELECT
   1,
@@ -25,8 +22,5 @@ SELECT
     (SELECT array_agg(id ORDER BY position) FROM public.status_types),
     '{}'::uuid[]
   ),
-  (SELECT id FROM public.status_types ORDER BY position ASC LIMIT 1),
-  true,
-  true,
-  true
+  (SELECT id FROM public.status_types ORDER BY position ASC LIMIT 1)
 WHERE NOT EXISTS (SELECT 1 FROM public.global_settings WHERE id = 1);
