@@ -6,18 +6,25 @@
  */
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
+import {
+  formatSupabaseAuthError,
+  normalizeSupabaseUrl,
+  validateSupabaseSeedEnv,
+} from "./lib/supabase-env";
 
 const email = process.env.SEED_ADMIN_EMAIL ?? "admin@ticqex.local";
 const password = process.env.SEED_ADMIN_PASSWORD ?? "ticqex-admin-change-me";
 
 async function main() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const secretKey = process.env.SUPABASE_SECRET_KEY;
+  const url = normalizeSupabaseUrl(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "",
+  );
+  const secretKey = process.env.SUPABASE_SECRET_KEY?.trim() ?? "";
 
-  if (!url || !secretKey) {
-    console.error(
-      "Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY (see .env.example)",
-    );
+  try {
+    validateSupabaseSeedEnv(url, secretKey);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   }
 
@@ -25,8 +32,16 @@ async function main() {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  const { data: existing } = await supabase.auth.admin.listUsers();
-  const found = existing.users.find((u) => u.email === email);
+  const { data: existing, error: listError } = await supabase.auth.admin.listUsers();
+  if (listError) {
+    console.error(
+      "Failed to list users:",
+      formatSupabaseAuthError(listError.message, url),
+    );
+    process.exit(1);
+  }
+
+  const found = existing.users.find((user) => user.email === email);
 
   if (found) {
     await supabase.from("users").update({ role: "admin" }).eq("id", found.id);
@@ -43,7 +58,10 @@ async function main() {
   });
 
   if (error) {
-    console.error("Failed to create admin:", error.message);
+    console.error(
+      "Failed to create admin:",
+      formatSupabaseAuthError(error.message, url),
+    );
     process.exit(1);
   }
 

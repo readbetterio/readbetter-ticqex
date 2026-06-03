@@ -5,6 +5,10 @@ import {
   writeEnvFile,
 } from "./env-file";
 import { runPnpm, runSupabase, runSupabaseCapture } from "./run-command";
+import {
+  isUsableSupabasePublishableKey,
+  isUsableSupabaseSecretKey,
+} from "./supabase-env";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const BOOTSTRAP_SQL = path.join(ROOT, "supabase/bootstrap.sql");
@@ -39,20 +43,47 @@ function parseJsonPayload<T>(stdout: string): T {
   return JSON.parse(stdout.slice(start, end + 1)) as T;
 }
 
+function pickApiKey(
+  entries: ApiKeyEntry[],
+  matches: Array<(entry: ApiKeyEntry) => boolean>,
+  usable: (value: string | undefined) => boolean,
+): string | undefined {
+  for (const match of matches) {
+    for (const entry of entries) {
+      if (match(entry) && usable(entry.api_key)) {
+        return entry.api_key!.trim();
+      }
+    }
+  }
+  return undefined;
+}
+
 export function resolveCloudSupabaseKeys(
   projectRef: string,
   entries: ApiKeyEntry[],
 ): CloudSupabaseKeys {
-  const publishableKey =
-    entries.find((entry) => entry.type === "publishable")?.api_key ??
-    entries.find((entry) => entry.name === "anon")?.api_key;
-  const secretKey =
-    entries.find((entry) => entry.type === "secret")?.api_key ??
-    entries.find((entry) => entry.name === "service_role")?.api_key;
+  const publishableKey = pickApiKey(
+    entries,
+    [
+      (entry) => entry.type === "publishable",
+      (entry) => entry.name === "anon",
+      (entry) => entry.type === "legacy" && entry.name === "anon",
+    ],
+    isUsableSupabasePublishableKey,
+  );
+  const secretKey = pickApiKey(
+    entries,
+    [
+      (entry) => entry.name === "service_role",
+      (entry) => entry.type === "legacy" && entry.name === "service_role",
+      (entry) => entry.type === "secret",
+    ],
+    isUsableSupabaseSecretKey,
+  );
 
   if (!publishableKey || !secretKey) {
     throw new Error(
-      "Could not resolve publishable and secret Supabase API keys from the linked project.",
+      "Could not resolve usable publishable and secret Supabase API keys from the linked project. Paste the full keys from Project Settings → API Keys if the CLI returned redacted sb_secret_ values.",
     );
   }
 
@@ -63,7 +94,7 @@ export function resolveCloudSupabaseKeys(
   };
 }
 
-export function fetchCloudSupabaseKeys(projectRef: string): CloudSupabaseKeys {
+export function fetchCloudSupabaseKeyEntries(projectRef: string): ApiKeyEntry[] {
   const output = runSupabaseCapture([
     "projects",
     "api-keys",
@@ -72,8 +103,11 @@ export function fetchCloudSupabaseKeys(projectRef: string): CloudSupabaseKeys {
     "-o",
     "json",
   ]);
-  const entries = parseJsonPayload<ApiKeyEntry[]>(output);
-  return resolveCloudSupabaseKeys(projectRef, entries);
+  return parseJsonPayload<ApiKeyEntry[]>(output);
+}
+
+export function fetchCloudSupabaseKeys(projectRef: string): CloudSupabaseKeys {
+  return resolveCloudSupabaseKeys(projectRef, fetchCloudSupabaseKeyEntries(projectRef));
 }
 
 export function writeCloudSupabaseEnv(

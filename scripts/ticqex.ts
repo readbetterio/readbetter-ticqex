@@ -4,10 +4,13 @@ import process from "node:process";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import {
   bootstrapCloudDatabase,
-  fetchCloudSupabaseKeys,
+  fetchCloudSupabaseKeyEntries,
+  resolveCloudSupabaseKeys,
   seedCloudAdmin,
   writeCloudSupabaseEnv,
+  type CloudSupabaseKeys,
 } from "./lib/cloud-supabase";
+import { promptHidden } from "./lib/prompt-hidden";
 import {
   closeReadline,
   createReadline,
@@ -40,6 +43,10 @@ import {
   resolveLocalWebhookHttpsUrl,
 } from "./lib/local-tunnel";
 import { isHttpsAppUrl } from "@shared/integrations/resend/webhook-endpoints";
+import {
+  isUsableSupabasePublishableKey,
+  isUsableSupabaseSecretKey,
+} from "./lib/supabase-env";
 
 type DbSetupMode = "skip" | "start" | "reset";
 type SupabaseTarget = "local" | "cloud" | "skip";
@@ -297,7 +304,7 @@ async function setupSupabase(
 async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterface> {
   console.log("\nCloud Supabase setup");
   console.log(
-    "Links the project, optionally pushes migrations, writes cloud keys to .env.local, and can seed an admin user.",
+    "You only need the project ref up front. After link/migrations/bootstrap, init fetches API keys via the Supabase CLI and writes them to .env.local (or prompts you to paste them if the CLI returns redacted values).",
   );
 
   const projectRef = await prompt(rl, "Supabase project ref");
@@ -342,9 +349,53 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
   }
 
   closeReadline(activeRl);
-  const keys = fetchCloudSupabaseKeys(projectRef);
-  writeCloudSupabaseEnv(ENV_FILE, ENV_EXAMPLE, keys);
+  console.log("\nFetching Supabase API keys (via Supabase CLI)...");
+  let keys: CloudSupabaseKeys = {
+    url: `https://${projectRef}.supabase.co`,
+    publishableKey: "",
+    secretKey: "",
+  };
+  try {
+    const entries = fetchCloudSupabaseKeyEntries(projectRef);
+    keys = resolveCloudSupabaseKeys(projectRef, entries);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`\n${message}`);
+  }
+
   activeRl = createReadline();
+  if (!isUsableSupabasePublishableKey(keys.publishableKey)) {
+    console.log(
+      "\nCould not auto-fetch a publishable key. Paste it from Supabase → Project Settings → API Keys.",
+    );
+    const publishableKey = await promptEnvValue(
+      activeRl,
+      readEnvContent(),
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+      {
+        label: "Supabase publishable key (Project Settings → API Keys)",
+        required: true,
+      },
+    );
+    keys.publishableKey = publishableKey;
+  }
+  if (!isUsableSupabaseSecretKey(keys.secretKey)) {
+    console.log(
+      "\nCould not auto-fetch a usable secret key (new sb_secret_ keys are often redacted by the CLI). Paste the full service_role JWT or revealed sb_secret_ key from Supabase → Project Settings → API Keys.",
+    );
+    const secretKey = await promptEnvValue(
+      activeRl,
+      readEnvContent(),
+      "SUPABASE_SECRET_KEY",
+      {
+        label: "Supabase secret key (full service_role or sb_secret_ key)",
+        required: true,
+      },
+    );
+    keys.secretKey = secretKey;
+  }
+
+  writeCloudSupabaseEnv(ENV_FILE, ENV_EXAMPLE, keys);
   console.log(`\nWrote cloud Supabase keys to ${displayPath(ENV_FILE)}`);
 
   const seedAdmin = await promptYesNo(
@@ -357,12 +408,13 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
     if (!email) {
       throw new Error("Admin email is required to seed a cloud admin user.");
     }
-    const password = await prompt(activeRl, "Admin password");
+
+    closeReadline(activeRl);
+    const password = await promptHidden("Admin password");
     if (!password) {
       throw new Error("Admin password is required to seed a cloud admin user.");
     }
 
-    closeReadline(activeRl);
     seedCloudAdmin(ENV_FILE, ENV_EXAMPLE, email, password);
     activeRl = createReadline();
     console.log(`\nAdmin user ready: ${email}`);
