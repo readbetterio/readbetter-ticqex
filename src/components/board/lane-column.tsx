@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TicketCard } from "./ticket-card";
 import type { BoardLane, BoardTicket } from "./types";
+import type { ResolvedTicketFieldLayout } from "@shared/ticket-fields";
 
 function DropPlaceholder() {
   return (
@@ -23,7 +24,9 @@ function DropPlaceholder() {
 export function LaneColumn({
   lane,
   sortable = false,
+  fieldLayout,
   onTicketClick,
+  onTicketDeleted,
   hasMore = false,
   loadingMore = false,
   onLoadMore,
@@ -31,7 +34,9 @@ export function LaneColumn({
 }: {
   lane: BoardLane;
   sortable?: boolean;
+  fieldLayout?: ResolvedTicketFieldLayout | null;
   onTicketClick: (ticket: BoardTicket) => void;
+  onTicketDeleted?: (ticketId: string) => void;
   hasMore?: boolean;
   loadingMore?: boolean;
   onLoadMore?: () => void;
@@ -58,7 +63,9 @@ export function LaneColumn({
           <TicketCard
             ticket={ticket}
             sortable={sortable}
+            fieldLayout={fieldLayout}
             onClick={() => onTicketClick(ticket)}
+            onDeleted={onTicketDeleted}
           />
         </div>
       ))}

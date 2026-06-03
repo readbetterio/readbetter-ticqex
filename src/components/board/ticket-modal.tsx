@@ -5,17 +5,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { CopyIcon, DotsThreeVerticalIcon, TrashIcon } from "@phosphor-icons/react";
 import { getConversationOriginBadge } from "@shared/channels/ticket-origin-badge";
+import {
+  CORE_TICKET_FIELD_IDS,
+  resolveCoreTicketFieldVisibility,
+  resolveVisibleTicketCustomFields,
+  type ResolvedTicketFieldLayout,
+} from "@shared/ticket-fields";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TicketDeleteDialog, ticketDeleteCopy } from "./ticket-delete-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,18 +30,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Tag } from "@/components/tags/types";
 import { apiFetch, apiFetchText } from "@/lib/api-client";
 import { useTicketRealtime } from "@/hooks/use-board-realtime";
 import { useRecentTags } from "@/hooks/use-recent-tags";
-import {
-  invalidateTicketDrafts,
-  ticketDraftsQueryKey,
-} from "@/hooks/use-ticket-drafts";
-import {
-  invalidateTicketMessages,
-  ticketMessagesQueryKey,
-} from "@/hooks/use-ticket-messages";
+import { ticketMessagesQueryKey } from "@/hooks/use-ticket-messages";
 import {
   ticketSummaryQueryKey,
   useTicketSummary,
@@ -48,7 +45,6 @@ import {
 } from "@/types/tickets";
 import type { TicketModalSeed } from "./board-ticket-seed";
 import {
-  ticketTagsQueryKey,
   useTicketTags,
   useTicketThreadOrder,
   useTicketUsers,
@@ -57,6 +53,12 @@ import { TicketConversationSection } from "./ticket-conversation-section";
 import { TicketContactSection } from "./ticket-contact-section";
 import { TicketDetailsSection } from "./ticket-details-section";
 import {
+  TicketCustomFieldsSection,
+  type TicketCustomFieldEditorDef,
+} from "./ticket-custom-fields-section";
+import { useTicketFieldLayoutFallback } from "@/hooks/use-ticket-field-layout";
+import { useTicketCustomFieldDefinitions } from "@/hooks/use-ticket-custom-field-definitions";
+import {
   TicketMetaSkeleton,
   TicketConversationSkeleton,
 } from "./ticket-modal-skeletons";
@@ -64,7 +66,10 @@ import {
   TicketStatusCombobox,
   type StatusOption,
 } from "./ticket-status-combobox";
-import type { EmailComposePayload, MessageRow } from "./types";
+import type { MessageRow } from "./types";
+import { useTicketModalDraft } from "./use-ticket-modal-draft";
+import { useTicketModalMetadataSave } from "./use-ticket-modal-metadata-save";
+import { useTicketModalEmailActions } from "./use-ticket-modal-email-actions";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -73,18 +78,11 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-type TicketDraft = {
-  ticketId: string;
-  title?: string;
-  body?: string;
-  assigneeId?: string;
-  selectedTags?: Tag[];
-};
-
 export function TicketModal({
   ticketId,
   statuses,
   initialSeed,
+  fieldLayout: fieldLayoutFromBoard,
   onStatusChange,
   onClose,
   onBoardChange,
@@ -93,6 +91,7 @@ export function TicketModal({
   ticketId: string;
   statuses: StatusOption[];
   initialSeed?: TicketModalSeed;
+  fieldLayout?: ResolvedTicketFieldLayout | null;
   onStatusChange: (
     ticketId: string,
     fromStatusId: string,
@@ -103,6 +102,7 @@ export function TicketModal({
   onTicketDeleted: (ticketId: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const fieldLayout = useTicketFieldLayoutFallback(fieldLayoutFromBoard ?? null);
   const summaryQuery = useTicketSummary(ticketId);
   const usersQuery = useTicketUsers();
   const tagsQuery = useTicketTags();
@@ -113,7 +113,6 @@ export function TicketModal({
   const allTags = tagsQuery.data ?? [];
   const threadOrder = threadOrderQuery.data ?? "oldest_first";
 
-  const [draft, setDraft] = useState<TicketDraft | null>(null);
   const { recentNames, touch: touchRecentTags } = useRecentTags();
   const [saving, setSaving] = useState(false);
   const [optimisticStatusId, setOptimisticStatusId] = useState<string | null>(
@@ -127,14 +126,18 @@ export function TicketModal({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
   const [deleteDeleting, setDeleteDeleting] = useState(false);
-  const currentDraft = draft?.ticketId === ticketId ? draft : null;
-  const title = currentDraft?.title ?? summary?.title ?? "";
-  const body =
-    currentDraft?.body ??
-    (summary && isTaskSummary(summary) ? (summary.body ?? "") : "");
-  const assigneeId =
-    currentDraft?.assigneeId ?? summary?.assignee_id ?? "";
-  const selectedTags = currentDraft?.selectedTags ?? summary?.tags ?? [];
+  const {
+    title,
+    body,
+    assigneeId,
+    selectedTags,
+    customFieldPatch,
+    customFieldsDirty,
+    customFieldValues,
+    updateDraft,
+    updateCustomFieldValue,
+    clearCustomFieldPatch,
+  } = useTicketModalDraft(ticketId, summary);
   const error =
     errorState?.ticketId === ticketId ? errorState.message : null;
 
@@ -145,16 +148,35 @@ export function TicketModal({
     [ticketId],
   );
 
-  const updateDraft = useCallback(
-    (patch: Omit<Partial<TicketDraft>, "ticketId">) => {
-      setDraft((current) =>
-        current?.ticketId === ticketId
-          ? { ...current, ...patch }
-          : { ticketId, ...patch },
-      );
-    },
-    [ticketId],
-  );
+  const { saveMeta, saveCustomFields } = useTicketModalMetadataSave({
+    ticketId,
+    summary,
+    title,
+    body,
+    assigneeId,
+    selectedTags,
+    customFieldPatch,
+    allTags,
+    queryClient,
+    setSaving,
+    setCurrentError,
+    onBoardChange: () => onBoardChange(),
+    touchRecentTags,
+    onCustomFieldsSaved: clearCustomFieldPatch,
+  });
+
+  const {
+    saveEmailDraft,
+    updateEmailDraft,
+    sendEmailDraft,
+    deleteEmailDraft,
+    sendEmailReply,
+  } = useTicketModalEmailActions({
+    ticketId,
+    queryClient,
+    setSaving,
+    setCurrentError,
+  });
 
   const refreshTicket = useCallback(() => {
     void queryClient.invalidateQueries({
@@ -305,147 +327,6 @@ export function TicketModal({
     ],
   );
 
-  async function saveMeta() {
-    const source = summary;
-    if (!source) return;
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      const tagNames = selectedTags
-        .map((tag) => tag.name.trim())
-        .filter(Boolean);
-      const payload: Record<string, unknown> = {
-        title,
-        assignee_id: assigneeId || null,
-        tags: tagNames,
-      };
-      if (isTaskSummary(source)) {
-        payload.body = body;
-      }
-      await apiFetch(`/api/v1/tickets/${ticketId}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ticketSummaryQueryKey(ticketId),
-      });
-      const existingKeys = new Set(
-        allTags.map((t) => t.name.trim().toLowerCase()),
-      );
-      const hasNewTag = tagNames.some(
-        (n) => !existingKeys.has(n.trim().toLowerCase()),
-      );
-      if (hasNewTag) {
-        await queryClient.invalidateQueries({ queryKey: ticketTagsQueryKey });
-      }
-      touchRecentTags(tagNames);
-      onBoardChange();
-    } catch (e) {
-      setCurrentError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function saveEmailDraft(payload: EmailComposePayload) {
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}/messages/drafts`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      invalidateTicketDrafts(queryClient, ticketId);
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Save draft failed");
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function updateEmailDraft(id: string, payload: EmailComposePayload) {
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}/messages/drafts/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
-      invalidateTicketDrafts(queryClient, ticketId);
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Update draft failed");
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function sendEmailDraft(
-    id: string,
-    _payload: EmailComposePayload,
-    includeQuote: boolean,
-  ) {
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}/messages/drafts/${id}/send`, {
-        method: "POST",
-        body: JSON.stringify({ include_quote: includeQuote }),
-      });
-      invalidateTicketDrafts(queryClient, ticketId);
-      invalidateTicketMessages(queryClient, ticketId);
-      await queryClient.invalidateQueries({
-        queryKey: ticketSummaryQueryKey(ticketId),
-      });
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Send draft failed");
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function deleteEmailDraft(id: string) {
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}/messages/drafts/${id}`, {
-        method: "DELETE",
-      });
-      invalidateTicketDrafts(queryClient, ticketId);
-      queryClient.removeQueries({
-        queryKey: ticketDraftsQueryKey(ticketId),
-        exact: false,
-      });
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Delete draft failed");
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function sendEmailReply(payload: EmailComposePayload) {
-    setSaving(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}/messages`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      invalidateTicketMessages(queryClient, ticketId);
-      await queryClient.invalidateQueries({
-        queryKey: ticketSummaryQueryKey(ticketId),
-      });
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Reply failed");
-      throw err;
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function copyContext() {
     const text = await apiFetchText(`/api/v1/tickets/${ticketId}/context`);
     await navigator.clipboard.writeText(text);
@@ -527,16 +408,43 @@ export function TicketModal({
     displaySeed?.kind === "conversation"
       ? getConversationOriginBadge(displaySeed.origin)
       : null;
-  const deleteLabel = isTask ? "Delete task" : "Delete email conversation";
-  const deleteTitle = isTask ? "Delete this task?" : "Delete this email conversation?";
-  const deletePermanentTitle = isTask
-    ? "Permanently delete this task?"
-    : "Permanently delete this email conversation?";
-  const deleteDescription = isTask
-    ? "The task and its details will be removed from your board."
-    : "The conversation and all messages will be removed from your board.";
-  const deletePermanentDescription =
-    "This action cannot be undone. If a new email arrives later, it will start a new conversation.";
+  const deleteKind = isTask ? "task" : "conversation";
+  const deleteCopy = ticketDeleteCopy(deleteKind);
+
+  const visibleFields = useMemo(
+    () => resolveCoreTicketFieldVisibility(fieldLayout, "ticket"),
+    [fieldLayout],
+  );
+  const showContact = visibleFields[CORE_TICKET_FIELD_IDS.contact];
+  const showAssignee = visibleFields[CORE_TICKET_FIELD_IDS.assignee];
+  const showTags = visibleFields[CORE_TICKET_FIELD_IDS.tags];
+  const showDescription = visibleFields[CORE_TICKET_FIELD_IDS.description];
+
+  const customFieldDefinitions = useMemo(
+    () => resolveVisibleTicketCustomFields(fieldLayout, "ticket"),
+    [fieldLayout],
+  );
+
+  const { definitions: fullCustomFieldDefinitions, isPending: customFieldsDefsPending } =
+    useTicketCustomFieldDefinitions(customFieldDefinitions.length > 0);
+
+  const customFieldEditorDefinitions = useMemo((): TicketCustomFieldEditorDef[] => {
+    const byKey = new Map(
+      fullCustomFieldDefinitions.map((d) => [d.key, d]),
+    );
+    return customFieldDefinitions.map((def) => {
+      const full = byKey.get(def.key);
+      return {
+        ...def,
+        options: full?.options ?? null,
+      };
+    });
+  }, [customFieldDefinitions, fullCustomFieldDefinitions]);
+
+  const showDetailsSection =
+    showAssignee ||
+    showTags ||
+    (showDescription && !!summary && isTaskSummary(summary));
 
   return (
     <>
@@ -618,7 +526,7 @@ export function TicketModal({
                   onClick={openDeleteDialog}
                 >
                   <TrashIcon />
-                  {deleteLabel}
+                  {deleteCopy.label}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -660,7 +568,19 @@ export function TicketModal({
                   onChange={(e) => updateDraft({ title: e.target.value })}
                 />
               </div>
-              {detailSummary.contact && detailSummary.contact_id && (
+              {!showDetailsSection && (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={saving}
+                    onClick={() => void saveMeta()}
+                  >
+                    Save details
+                  </Button>
+                </div>
+              )}
+              {showContact && detailSummary.contact && detailSummary.contact_id && (
                 <TicketContactSection
                   contactId={detailSummary.contact_id}
                   displayName={
@@ -676,37 +596,60 @@ export function TicketModal({
                   }
                 />
               )}
-              <TicketDetailsSection
-                assigneeId={assigneeId}
-                onAssigneeChange={(value) =>
-                  updateDraft({ assigneeId: value })
-                }
-                users={users}
-                usersLoading={usersQuery.isPending}
-                selectedTags={selectedTags}
-                onTagsChange={(tags) => updateDraft({ selectedTags: tags })}
-                allTags={allTags}
-                tagsLoading={tagsQuery.isPending}
-                recentNames={recentNames}
-                saving={saving}
-                onSave={() => void saveMeta()}
-                body={
-                  isTaskSummary(detailSummary) ? body : undefined
-                }
-                onBodyChange={
-                  isTaskSummary(detailSummary)
-                    ? (value) => updateDraft({ body: value })
-                    : undefined
-                }
-                summary={[
-                  users.find((u) => u.id === assigneeId)?.username ??
-                    detailSummary.assignee?.username ??
-                    "Unassigned",
-                  selectedTags.length > 0
-                    ? selectedTags.map((tag) => tag.name).join(", ")
-                    : "No tags",
-                ].join(" · ")}
-              />
+              {showDetailsSection && (
+                <TicketDetailsSection
+                  assigneeId={assigneeId}
+                  onAssigneeChange={(value) =>
+                    updateDraft({ assigneeId: value })
+                  }
+                  users={users}
+                  usersLoading={usersQuery.isPending}
+                  selectedTags={selectedTags}
+                  onTagsChange={(tags) => updateDraft({ selectedTags: tags })}
+                  allTags={allTags}
+                  tagsLoading={tagsQuery.isPending}
+                  recentNames={recentNames}
+                  saving={saving}
+                  onSave={() => void saveMeta()}
+                  showAssignee={showAssignee}
+                  showTags={showTags}
+                  body={
+                    showDescription && isTaskSummary(detailSummary)
+                      ? body
+                      : undefined
+                  }
+                  onBodyChange={
+                    showDescription && isTaskSummary(detailSummary)
+                      ? (value) => updateDraft({ body: value })
+                      : undefined
+                  }
+                  summary={[
+                    showAssignee
+                      ? users.find((u) => u.id === assigneeId)?.username ??
+                        detailSummary.assignee?.username ??
+                        "Unassigned"
+                      : null,
+                    showTags
+                      ? selectedTags.length > 0
+                        ? selectedTags.map((tag) => tag.name).join(", ")
+                        : "No tags"
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                />
+              )}
+              {customFieldDefinitions.length > 0 && (
+                <TicketCustomFieldsSection
+                  definitions={customFieldEditorDefinitions}
+                  values={customFieldValues}
+                  optionsLoading={customFieldsDefsPending}
+                  saving={saving}
+                  dirty={customFieldsDirty}
+                  onValueChange={updateCustomFieldValue}
+                  onSave={() => void saveCustomFields()}
+                />
+              )}
             </div>
           )}
 
@@ -740,64 +683,18 @@ export function TicketModal({
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <TicketDeleteDialog
         open={deleteOpen}
-        onOpenChange={(open) => !open && closeDeleteDialog()}
-      >
-        <DialogContent className="sm:max-w-md">
-          {deleteStep === 1 ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>{deleteTitle}</DialogTitle>
-                <DialogDescription>{deleteDescription}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={closeDeleteDialog}
-                  disabled={deleteDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => setDeleteStep(2)}
-                  disabled={deleteDeleting}
-                >
-                  Continue
-                </Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle>{deletePermanentTitle}</DialogTitle>
-                <DialogDescription>{deletePermanentDescription}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={closeDeleteDialog}
-                  disabled={deleteDeleting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={deleteDeleting}
-                  onClick={() => void confirmDelete()}
-                >
-                  {deleteDeleting ? "Deleting…" : "Delete permanently"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+        kind={deleteKind}
+        step={deleteStep}
+        deleting={deleteDeleting}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteDialog();
+          else setDeleteOpen(true);
+        }}
+        onStepChange={setDeleteStep}
+        onConfirmDelete={() => void confirmDelete()}
+      />
     </>
   );
 }

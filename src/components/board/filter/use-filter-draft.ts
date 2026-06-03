@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api-client";
 import {
   getCustomFieldOperators,
   getScalarOperators,
@@ -12,14 +11,8 @@ import {
   type TicketFilter,
 } from "@shared/ticket-filter";
 import { buildConditionFromDraft } from "./filter-condition-draft";
-import type {
-  Assignee,
-  BoardFilterOptions,
-  CustomFieldDef,
-  Contact,
-  FilterField,
-  Tag,
-} from "./filter-types";
+import type { FilterField } from "./filter-types";
+import { useBoardFilterOptions } from "./use-board-filter-options";
 
 export function useFilterDraft(
   filter: TicketFilter,
@@ -29,25 +22,21 @@ export function useFilterDraft(
   const [field, setField] = useState<FilterField | "">("");
   const [operator, setOperator] = useState<FilterOperator | "">("");
   const [customFieldKey, setCustomFieldKey] = useState("");
-  const [assignees, setAssignees] = useState<Assignee[]>([]);
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [customFields, setCustomFields] = useState<CustomFieldDef[]>([]);
   const [singleValue, setSingleValue] = useState("");
   const [multiValues, setMultiValues] = useState<string[]>([]);
   const [customValue, setCustomValue] = useState("");
   const [customMultiValues, setCustomMultiValues] = useState<string[]>([]);
   const [unreadValue, setUnreadValue] = useState(true);
 
+  // Fetch options eagerly when a filter is already active (so chips resolve
+  // names), and on demand once the filter UI is opened.
+  const [requested, setRequested] = useState(false);
+  const { contacts, assignees, tags, customFields } = useBoardFilterOptions(
+    requested || filter.length > 0,
+  );
+
   const loadOptions = useCallback(async () => {
-    const [options, fields] = await Promise.all([
-      apiFetch<BoardFilterOptions>("/api/v1/board/filter-options"),
-      apiFetch<CustomFieldDef[]>("/api/v1/custom-fields?group=ticket"),
-    ]);
-    setContacts(options.contacts);
-    setAssignees(options.assignees);
-    setTags(options.tags);
-    setCustomFields(fields);
+    setRequested(true);
   }, []);
 
   const selectedCustomField = customFields.find((f) => f.key === customFieldKey);

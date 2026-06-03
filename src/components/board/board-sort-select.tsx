@@ -38,12 +38,12 @@ export function BoardSortSelect({
     >
       <SelectTrigger
         size="sm"
-        className={cn(
-          "w-full min-w-0 sm:w-[11rem] md:w-[13.75rem]",
-          className,
-        )}
+        className={cn("w-auto shrink-0", className)}
       >
-        <SelectValue placeholder="Sort" />
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-muted-foreground">Sort:</span>
+          <SelectValue />
+        </span>
       </SelectTrigger>
       <SelectContent position="popper" align="start" sideOffset={4}>
         {BOARD_SORT_OPTIONS.map((option) => (

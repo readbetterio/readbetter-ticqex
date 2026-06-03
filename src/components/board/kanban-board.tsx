@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
 import { PlusIcon } from "@phosphor-icons/react";
@@ -43,8 +43,10 @@ import {
   visibleIdsForLane,
 } from "./board-lane-order-client";
 import { BoardFilterBar } from "./board-filter-bar";
+import { BoardFilterSheet } from "./board-filter-sheet";
 import { BoardSearchBar } from "./board-search-bar";
 import { BoardSortSelect } from "./board-sort-select";
+import { BoardSortSheet } from "./board-sort-sheet";
 import { TicketCard } from "./ticket-card";
 import { LaneColumn } from "./lane-column";
 import { CreateTicketModal } from "./create-ticket-modal";
@@ -71,6 +73,7 @@ const EMPTY_LANES: BoardLane[] = [];
 
 export function KanbanBoard({ children }: { children?: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const {
     filter,
@@ -88,6 +91,7 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
 
   const boardQuery = useBoardQuery(filter, querySort, searchQuery);
   const lanes = boardQuery.data?.lanes ?? EMPTY_LANES;
+  const ticketFieldLayout = boardQuery.data?.ticket_field_layout ?? null;
   const capped = boardQuery.data?.capped ?? false;
   const subsetActive = viewNarrowedActive || capped;
 
@@ -414,13 +418,17 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
         queryKey: ticketMessagesQueryKey(ticketId),
       });
       void queryClient.refetchQueries({ queryKey: ["board"], type: "active" });
+      if (pathname === boardTicketPath(ticketId)) {
+        router.push("/board");
+      }
     },
-    [queryClient, setLanes],
+    [pathname, queryClient, router, setLanes],
   );
 
   const modalContext = useMemo(
     () => ({
       statuses: allStatuses,
+      ticketFieldLayout,
       getInitialSeed,
       onStatusChange: moveTicketStatus,
       onBoardChange: handleBoardChange,
@@ -428,6 +436,7 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
     }),
     [
       allStatuses,
+      ticketFieldLayout,
       getInitialSeed,
       handleBoardChange,
       handleTicketDeleted,
@@ -436,46 +445,69 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
   );
 
   const header = (
-    <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
-      <BoardFilterBar filter={filter} onFilterChange={setFilter} />
-      <div className="flex min-w-[min(100%,18rem)] flex-1 items-center justify-end gap-2 max-sm:w-full sm:gap-3">
+    <>
+      <div className="mx-auto hidden w-full max-w-[1600px] shrink-0 items-center gap-3 px-4 pt-3 sm:flex">
         <BoardSearchBar
           value={searchQuery}
           onChange={setSearchQuery}
-          className="w-full sm:max-w-xs lg:w-72"
+          className="w-full shrink-0 sm:max-w-xs lg:w-72"
         />
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="hidden shrink-0 text-sm text-muted-foreground sm:inline">
-            Sort:
-          </span>
-          <BoardSortSelect
-            sort={sort}
-            onSortChange={(next) => void handleSortChange(next)}
-          />
-          <Button
-            size="sm"
-            className="shrink-0"
-            onClick={() => setShowCreate(true)}
-            aria-label="New ticket"
-          >
-            <PlusIcon />
-            <span className="hidden sm:inline">New Ticket</span>
-          </Button>
-        </div>
+        <BoardFilterBar
+          filter={filter}
+          onFilterChange={setFilter}
+          className="min-w-0 flex-1"
+        />
+        <BoardSortSelect
+          sort={sort}
+          onSortChange={(next) => void handleSortChange(next)}
+        />
+        <Button
+          size="sm"
+          className="shrink-0"
+          onClick={() => setShowCreate(true)}
+          aria-label="New ticket"
+        >
+          <PlusIcon />
+          <span className="hidden sm:inline">New Ticket</span>
+        </Button>
       </div>
-    </div>
+
+      <div className="flex w-full shrink-0 items-center gap-2 px-4 pt-3 sm:hidden">
+        <BoardSearchBar value={searchQuery} onChange={setSearchQuery} />
+        <BoardFilterSheet filter={filter} onFilterChange={setFilter} />
+        <BoardSortSheet
+          sort={sort}
+          onSortChange={(next) => void handleSortChange(next)}
+        />
+      </div>
+    </>
+  );
+
+  const createFab = (
+    <Button
+      size="icon-lg"
+      className="fixed right-4 bottom-4 z-30 size-12 rounded-full shadow-lg sm:hidden"
+      onClick={() => setShowCreate(true)}
+      aria-label="New ticket"
+    >
+      <PlusIcon className="size-5" />
+    </Button>
   );
 
   if (loading) {
     return (
       <BoardTicketModalProvider value={modalContext}>
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3">
-            <Skeleton className="h-8 w-24" />
-            <div className="flex flex-1 items-center justify-end gap-2 max-sm:w-full">
-              <Skeleton className="h-8 w-full sm:max-w-xs lg:w-72" />
-              <Skeleton className="h-8 w-56" />
-            </div>
+          <div className="mx-auto hidden w-full max-w-[1600px] shrink-0 items-center gap-3 px-4 pt-3 sm:flex">
+            <Skeleton className="h-8 w-full shrink-0 sm:max-w-xs lg:w-72" />
+            <Skeleton className="h-8 flex-1" />
+            <Skeleton className="h-8 w-28 shrink-0" />
+            <Skeleton className="h-8 w-28 shrink-0" />
+          </div>
+          <div className="flex w-full shrink-0 items-center gap-2 px-4 pt-3 sm:hidden">
+            <Skeleton className="h-8 flex-1" />
+            <Skeleton className="size-8 shrink-0" />
+            <Skeleton className="size-8 shrink-0" />
           </div>
           <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
             <div className="flex h-full w-max min-w-full justify-center gap-4 p-4">
@@ -507,6 +539,7 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
     <BoardTicketModalProvider value={modalContext}>
       <div className="flex min-h-0 flex-1 flex-col">
         {header}
+        {createFab}
 
       {searchActive && !boardQuery.isFetching && !hasSearchResults ? (
         <p className="px-4 pt-2 text-sm text-muted-foreground">
@@ -536,7 +569,9 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
                   key={lane.status.id}
                   lane={lane}
                   sortable
+                  fieldLayout={ticketFieldLayout}
                   onTicketClick={openTicket}
+                  onTicketDeleted={handleTicketDeleted}
                   hasMore={searchActive ? false : (lane.has_more ?? false)}
                   loadingMore={loadingLaneIds.has(lane.status.id)}
                   onLoadMore={() => void loadMore(lane)}
@@ -552,7 +587,12 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
           <DragOverlay dropAnimation={null}>
             {activeTicket ? (
               <div className="w-72 cursor-grabbing">
-                <TicketCard ticket={activeTicket} onClick={() => {}} dragOverlay />
+                <TicketCard
+                  ticket={activeTicket}
+                  onClick={() => {}}
+                  dragOverlay
+                  fieldLayout={ticketFieldLayout}
+                />
               </div>
             ) : null}
           </DragOverlay>

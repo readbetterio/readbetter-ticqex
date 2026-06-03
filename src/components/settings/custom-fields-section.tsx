@@ -2,250 +2,41 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  DotsSixVerticalIcon,
-  PencilSimpleIcon,
-  PlusIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
-import {
-  getCustomFieldTypeLabel,
   type CustomFieldDefinition,
   type CustomFieldGroup,
 } from "@shared/custom-fields";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  buildVisibilityPatch,
+  type ResolvedTicketFieldLayout,
+  type TicketFieldCatalogEntry,
+} from "@shared/ticket-fields";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
 import {
   CustomFieldDefinitionDialog,
   type CustomFieldFormValues,
 } from "@/components/settings/custom-field-definition-dialog";
+import { ContactCustomFieldsList } from "@/components/settings/contact-custom-fields-list";
+import { DeleteCustomFieldDialog } from "@/components/settings/delete-custom-field-dialog";
+import { TicketFieldVisibilitySection } from "@/components/settings/ticket-field-visibility-section";
 
 type FieldRow = CustomFieldDefinition;
 
-function SortableFieldRow({
-  field,
-  onEdit,
-  onDelete,
-}: {
-  field: FieldRow;
-  onEdit: (field: FieldRow) => void;
-  onDelete: (field: FieldRow) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: field.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5",
-        isDragging && "z-10 opacity-60 shadow-md",
-      )}
-    >
-      <button
-        type="button"
-        className="cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground active:cursor-grabbing"
-        aria-label={`Reorder ${field.label}`}
-        {...attributes}
-        {...listeners}
-      >
-        <DotsSixVerticalIcon className="size-4" />
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{field.label}</span>
-          <Badge variant="secondary">{getCustomFieldTypeLabel(field.type)}</Badge>
-          {field.required && <Badge variant="outline">Required</Badge>}
-        </div>
-        <p className="truncate font-mono text-xs text-muted-foreground">
-          {field.key}
-        </p>
-      </div>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Edit ${field.label}`}
-        onClick={() => onEdit(field)}
-      >
-        <PencilSimpleIcon className="size-4" />
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={`Delete ${field.label}`}
-        onClick={() => onDelete(field)}
-      >
-        <TrashIcon className="size-4 text-destructive" />
-      </Button>
-    </div>
-  );
-}
-
-function FieldGroupList({
-  title,
-  group,
-  fields,
-  onReorder,
-  onEdit,
-  onDelete,
-  onAdd,
-}: {
-  title: string;
-  group: CustomFieldGroup;
-  fields: FieldRow[];
-  onReorder: (group: CustomFieldGroup, orderedIds: string[]) => Promise<void>;
-  onEdit: (field: FieldRow) => void;
-  onDelete: (field: FieldRow) => void;
-  onAdd: (group: CustomFieldGroup) => void;
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-  );
-
-  async function onDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = fields.findIndex((f) => f.id === active.id);
-    const newIndex = fields.findIndex((f) => f.id === over.id);
-    if (oldIndex < 0 || newIndex < 0) return;
-
-    const reordered = arrayMove(fields, oldIndex, newIndex);
-    await onReorder(
-      group,
-      reordered.map((f) => f.id),
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">{title}</h3>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onAdd(group)}
-        >
-          <PlusIcon />
-          Add
-        </Button>
-      </div>
-
-      {fields.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-          No {group} fields yet.
-        </p>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={(e) => void onDragEnd(e)}
-        >
-          <SortableContext
-            items={fields.map((f) => f.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-2">
-              {fields.map((field) => (
-                <SortableFieldRow
-                  key={field.id}
-                  field={field}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
-    </div>
-  );
-}
-
-function DeleteFieldDialog({
-  field,
-  deleting,
-  onCancel,
-  onConfirm,
-}: {
-  field: FieldRow;
-  deleting: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Delete &ldquo;{field.label}&rdquo;?</DialogTitle>
-          <DialogDescription>
-            This removes the field definition and all stored values on tickets or
-            contacts. This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={deleting}
-            onClick={onConfirm}
-          >
-            {deleting ? "Deleting…" : "Delete field"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+type SettingsWithLayout = {
+  ticket_field_layout?: ResolvedTicketFieldLayout;
+};
 
 export function CustomFieldsSection() {
   const [fields, setFields] = useState<FieldRow[]>([]);
+  const [catalog, setCatalog] = useState<TicketFieldCatalogEntry[]>([]);
+  const [savedCatalog, setSavedCatalog] = useState<TicketFieldCatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -253,13 +44,20 @@ export function CustomFieldsSection() {
   const [dialogGroup, setDialogGroup] = useState<CustomFieldGroup>("ticket");
   const [editingField, setEditingField] = useState<FieldRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FieldRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<FieldRow[]>("/api/v1/custom-fields");
-      setFields(data);
+      const [fieldData, settingsData] = await Promise.all([
+        apiFetch<FieldRow[]>("/api/v1/custom-fields"),
+        apiFetch<SettingsWithLayout>("/api/v1/settings"),
+      ]);
+      setFields(fieldData);
+      const nextCatalog = settingsData.ticket_field_layout?.catalog ?? [];
+      setCatalog(nextCatalog);
+      setSavedCatalog(nextCatalog);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load custom fields");
@@ -288,6 +86,51 @@ export function CustomFieldsSection() {
         .sort((a, b) => a.position - b.position),
     [fields],
   );
+
+  const coreCatalog = useMemo(
+    () => catalog.filter((entry) => entry.kind === "core"),
+    [catalog],
+  );
+
+  const customCatalog = useMemo(
+    () => catalog.filter((entry) => entry.kind === "custom"),
+    [catalog],
+  );
+
+  const visibilityDirty = useMemo(
+    () => JSON.stringify(catalog) !== JSON.stringify(savedCatalog),
+    [catalog, savedCatalog],
+  );
+
+  function updateCatalogEntry(
+    id: string,
+    patch: Partial<Pick<TicketFieldCatalogEntry, "showOnCard" | "showInTicket">>,
+  ) {
+    setCatalog((current) =>
+      current.map((entry) =>
+        entry.id === id ? { ...entry, ...patch } : entry,
+      ),
+    );
+  }
+
+  async function saveVisibility() {
+    setSavingVisibility(true);
+    try {
+      const ticket_field_visibility = buildVisibilityPatch(catalog);
+      const settings = await apiFetch<SettingsWithLayout>("/api/v1/settings", {
+        method: "PATCH",
+        body: JSON.stringify({ ticket_field_visibility }),
+      });
+      const nextCatalog = settings.ticket_field_layout?.catalog ?? catalog;
+      setCatalog(nextCatalog);
+      setSavedCatalog(nextCatalog);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save visibility");
+    } finally {
+      setSavingVisibility(false);
+    }
+  }
 
   function openCreate(group: CustomFieldGroup) {
     setDialogMode("create");
@@ -348,6 +191,7 @@ export function CustomFieldsSection() {
           }),
         });
         setFields((current) => [...current, created]);
+        await load();
       } else if (editingField) {
         const updated = await apiFetch<FieldRow>(
           `/api/v1/custom-fields/${editingField.id}`,
@@ -364,6 +208,7 @@ export function CustomFieldsSection() {
         setFields((current) =>
           current.map((f) => (f.id === editingField.id ? updated : f)),
         );
+        await load();
       }
       setError(null);
     } finally {
@@ -380,6 +225,7 @@ export function CustomFieldsSection() {
       });
       setFields((current) => current.filter((f) => f.id !== deleteTarget.id));
       setDeleteTarget(null);
+      await load();
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete field");
@@ -390,9 +236,23 @@ export function CustomFieldsSection() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ticket fields</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Contact fields</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -405,25 +265,41 @@ export function CustomFieldsSection() {
         </Alert>
       )}
 
-      <FieldGroupList
-        title="Ticket fields"
-        group="ticket"
-        fields={ticketFields}
-        onReorder={handleReorder}
-        onEdit={openEdit}
-        onDelete={setDeleteTarget}
-        onAdd={openCreate}
-      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Ticket fields</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TicketFieldVisibilitySection
+            coreEntries={coreCatalog}
+            customEntries={customCatalog}
+            fields={ticketFields}
+            onVisibilityChange={updateCatalogEntry}
+            onReorder={handleReorder}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+            onAdd={openCreate}
+            onSaveVisibility={saveVisibility}
+            savingVisibility={savingVisibility}
+            visibilityDirty={visibilityDirty}
+          />
+        </CardContent>
+      </Card>
 
-      <FieldGroupList
-        title="Contact fields"
-        group="contact"
-        fields={contactFields}
-        onReorder={handleReorder}
-        onEdit={openEdit}
-        onDelete={setDeleteTarget}
-        onAdd={openCreate}
-      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Contact fields</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContactCustomFieldsList
+            fields={contactFields}
+            onReorder={handleReorder}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+            onAdd={openCreate}
+          />
+        </CardContent>
+      </Card>
 
       <CustomFieldDefinitionDialog
         open={dialogOpen}
@@ -436,7 +312,7 @@ export function CustomFieldsSection() {
       />
 
       {deleteTarget && (
-        <DeleteFieldDialog
+        <DeleteCustomFieldDialog
           field={deleteTarget}
           deleting={deleting}
           onCancel={() => setDeleteTarget(null)}

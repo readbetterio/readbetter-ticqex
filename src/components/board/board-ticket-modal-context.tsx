@@ -3,9 +3,11 @@
 import { createContext, useContext } from "react";
 import type { TicketModalSeed } from "./board-ticket-seed";
 import type { StatusOption } from "./ticket-status-combobox";
+import type { ResolvedTicketFieldLayout } from "@shared/ticket-fields";
 
 type BoardTicketModalContextValue = {
   statuses: StatusOption[];
+  ticketFieldLayout: ResolvedTicketFieldLayout | null;
   getInitialSeed: (ticketId: string) => TicketModalSeed | undefined;
   onStatusChange: (
     ticketId: string,

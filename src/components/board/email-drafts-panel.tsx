@@ -308,12 +308,8 @@ export function EmailDraftsPanel({
     setOpenDraftId((current) => (current === id ? null : id));
   }, []);
 
-  if (isLoading) {
-    return (
-      <div className="border-b border-border bg-muted/25 px-4 py-2.5">
-        <p className="text-xs text-muted-foreground">Loading drafts…</p>
-      </div>
-    );
+  if (isLoading || drafts.length === 0) {
+    return null;
   }
 
   return (
@@ -331,16 +327,12 @@ export function EmailDraftsPanel({
         )}
         <FileDashedIcon className="size-4 shrink-0 text-muted-foreground" />
         <span className="font-medium text-foreground">Drafts</span>
-        {drafts.length > 0 ? (
-          <Badge variant="secondary" className="h-5 px-1.5 text-[10px] tabular-nums">
-            {drafts.length}
-          </Badge>
-        ) : (
-          <span className="text-xs font-normal text-muted-foreground">None saved</span>
-        )}
+        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] tabular-nums">
+          {drafts.length}
+        </Badge>
       </button>
 
-      {hydrated && expanded && drafts.length > 0 && (
+      {hydrated && expanded && (
         <div className="max-h-[min(36vh,18rem)] overflow-y-auto overscroll-contain border-t border-border/60 px-2 pb-2 pt-1">
           <ul className="space-y-1.5">
             {drafts.map((draft) => {
@@ -412,12 +404,6 @@ export function EmailDraftsPanel({
             })}
           </ul>
         </div>
-      )}
-
-      {hydrated && expanded && drafts.length === 0 && (
-        <p className="border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
-          Saved replies appear here. Use &ldquo;Save draft&rdquo; while composing below.
-        </p>
       )}
     </div>
   );

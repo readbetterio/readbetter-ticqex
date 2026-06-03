@@ -5,6 +5,12 @@ import {
   type TicketFilter,
   type TicketFilterMatchTicket,
 } from "@shared/ticket-filter";
+import {
+  filterTicketCardSurface,
+  parseCustomFieldId,
+  type ResolvedTicketFieldLayout,
+  type TicketCustomFieldDefinition,
+} from "@shared/ticket-fields";
 import type { Tag } from "@/components/tags/types";
 import type {
   BoardLane,
@@ -237,4 +243,45 @@ export function replaceTicketInLanes(
     ...lane,
     tickets: lane.tickets.map((entry) => (entry.id === tempId ? ticket : entry)),
   }));
+}
+
+export function ticketCustomFieldDefinitionsFromLayout(
+  layout: ResolvedTicketFieldLayout,
+): TicketCustomFieldDefinition[] {
+  return layout.catalog.flatMap((entry) => {
+    if (entry.kind !== "custom" || !entry.key || !entry.type) return [];
+    const id = parseCustomFieldId(entry.id);
+    if (!id) return [];
+    return [
+      {
+        id,
+        key: entry.key,
+        label: entry.label,
+        type: entry.type,
+        position: entry.position ?? 0,
+        required: entry.required,
+      },
+    ];
+  });
+}
+
+export function mergeBoardTicketAfterPatch(
+  existing: BoardTicket,
+  detail: TicketDetail,
+  layout: ResolvedTicketFieldLayout | null | undefined,
+): BoardTicket {
+  const converted = ticketDetailToBoardTicket(detail);
+  let card_surface = converted.card_surface;
+  if (layout && card_surface) {
+    card_surface = filterTicketCardSurface(
+      card_surface,
+      layout,
+      ticketCustomFieldDefinitionsFromLayout(layout),
+    );
+  }
+  return {
+    ...converted,
+    card_surface,
+    unread_count: existing.unread_count,
+  };
 }

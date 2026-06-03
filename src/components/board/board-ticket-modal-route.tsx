@@ -9,6 +9,7 @@ export function BoardTicketModalRoute({ ticketId }: { ticketId: string }) {
   const router = useRouter();
   const {
     statuses,
+    ticketFieldLayout,
     getInitialSeed,
     onStatusChange,
     onBoardChange,
@@ -31,6 +32,7 @@ export function BoardTicketModalRoute({ ticketId }: { ticketId: string }) {
     <TicketModal
       ticketId={ticketId}
       initialSeed={getInitialSeed(ticketId)}
+      fieldLayout={ticketFieldLayout}
       statuses={statuses}
       onStatusChange={onStatusChange}
       onClose={closeTicket}

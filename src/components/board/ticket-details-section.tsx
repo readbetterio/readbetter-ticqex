@@ -34,6 +34,8 @@ export function TicketDetailsSection({
   summary,
   body,
   onBodyChange,
+  showAssignee = true,
+  showTags = true,
 }: {
   assigneeId: string;
   onAssigneeChange: (value: string) => void;
@@ -49,6 +51,8 @@ export function TicketDetailsSection({
   summary?: string;
   body?: string;
   onBodyChange?: (value: string) => void;
+  showAssignee?: boolean;
+  showTags?: boolean;
 }) {
   const { expanded, toggleExpanded } = usePersistedExpanded(
     STORAGE_PREFIX,
@@ -78,45 +82,49 @@ export function TicketDetailsSection({
 
       {expanded && (
         <div className="space-y-3 p-4">
-          <div className="space-y-2">
-            <Label>Assignee</Label>
-            {usersLoading ? (
-              <Skeleton className="h-9 w-full" />
-            ) : (
-              <Select
-                value={assigneeId || UNASSIGNED}
-                onValueChange={(v) =>
-                  onAssigneeChange(v === UNASSIGNED ? "" : v)
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Unassigned" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.username}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label>Tags</Label>
-            {tagsLoading ? (
-              <Skeleton className="h-9 w-full" />
-            ) : (
-              <TagMultiSelect
-                value={selectedTags}
-                options={allTags}
-                onChange={onTagsChange}
-                recentNames={recentNames}
-                disabled={saving}
-              />
-            )}
-          </div>
+          {showAssignee && (
+            <div className="space-y-2">
+              <Label>Assignee</Label>
+              {usersLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <Select
+                  value={assigneeId || UNASSIGNED}
+                  onValueChange={(v) =>
+                    onAssigneeChange(v === UNASSIGNED ? "" : v)
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.username}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+          {showTags && (
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              {tagsLoading ? (
+                <Skeleton className="h-9 w-full" />
+              ) : (
+                <TagMultiSelect
+                  value={selectedTags}
+                  options={allTags}
+                  onChange={onTagsChange}
+                  recentNames={recentNames}
+                  disabled={saving}
+                />
+              )}
+            </div>
+          )}
           {onBodyChange && (
             <div className="space-y-2">
               <Label htmlFor="ticket-body">Description</Label>
