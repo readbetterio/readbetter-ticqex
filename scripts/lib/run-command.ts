@@ -47,11 +47,15 @@ export function runSupabase(
   }
 }
 
-export function runPnpm(args: string[]): void {
+export function runPnpm(
+  args: string[],
+  options: { env?: Record<string, string> } = {},
+): void {
   console.log(`\n> pnpm ${args.join(" ")}`);
   const result = spawnSync("pnpm", args, {
     cwd: ROOT,
     stdio: "inherit",
+    env: options.env ? { ...process.env, ...options.env } : undefined,
   });
 
   if (result.error) {

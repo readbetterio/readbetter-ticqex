@@ -127,19 +127,33 @@ export function writeCloudSupabaseEnv(
   return content;
 }
 
+export function assignCloudSupabaseEnv(
+  keys: CloudSupabaseKeys,
+  target: Record<string, string>,
+): void {
+  target.NEXT_PUBLIC_SUPABASE_URL = keys.url;
+  target.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishableKey;
+  target.SUPABASE_SECRET_KEY = keys.secretKey;
+}
+
 export function bootstrapCloudDatabase(): void {
   runSupabase(["db", "query", "--linked", "-f", BOOTSTRAP_SQL]);
 }
 
 export function seedCloudAdmin(
-  envFile: string,
-  envExample: string,
+  keys: CloudSupabaseKeys,
   email: string,
   password: string,
+  target: Record<string, string>,
 ): void {
-  let content = readOrCreateEnvFile(envFile, envExample);
-  content = setEnvLine(content, "SEED_ADMIN_EMAIL", email);
-  content = setEnvLine(content, "SEED_ADMIN_PASSWORD", password);
-  writeEnvFile(envFile, content);
-  runPnpm(["db:seed-admin"]);
+  target.SEED_ADMIN_EMAIL = email;
+  target.SEED_ADMIN_PASSWORD = password;
+  runPnpm(["db:seed-admin"], {
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: keys.url,
+      SUPABASE_SECRET_KEY: keys.secretKey,
+      SEED_ADMIN_EMAIL: email,
+      SEED_ADMIN_PASSWORD: password,
+    },
+  });
 }

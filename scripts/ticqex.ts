@@ -3,11 +3,11 @@ import path from "node:path";
 import process from "node:process";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import {
+  assignCloudSupabaseEnv,
   bootstrapCloudDatabase,
   fetchCloudSupabaseKeyEntries,
   resolveCloudSupabaseKeys,
   seedCloudAdmin,
-  writeCloudSupabaseEnv,
   type CloudSupabaseKeys,
 } from "./lib/cloud-supabase";
 import { promptHidden } from "./lib/prompt-hidden";
@@ -57,6 +57,7 @@ type SupabaseTarget = "local" | "cloud" | "skip";
 type InitContext = {
   rl: ReadlineInterface;
   usedCloudSupabase: boolean;
+  cloudDeployEnv?: Record<string, string>;
 };
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -134,6 +135,18 @@ function isPlaceholderEnvValue(value: string): boolean {
 function displayPath(filePath: string): string {
   const relative = path.relative(ROOT, filePath);
   return relative.startsWith("..") ? filePath : relative;
+}
+
+function setTrackedEnvLine(
+  envContent: string,
+  key: string,
+  value: string,
+  cloudDeployEnv?: Record<string, string>,
+): string {
+  if (cloudDeployEnv) {
+    cloudDeployEnv[key] = value;
+  }
+  return setEnvLine(envContent, key, value);
 }
 
 function hasSupabaseEnv(content: string): boolean {
@@ -257,7 +270,12 @@ async function setupSupabase(
   }
 
   if (target === "cloud") {
-    return { rl: await setupCloudSupabase(rl), usedCloudSupabase: true };
+    const cloudDeployEnv: Record<string, string> = {};
+    return {
+      rl: await setupCloudSupabase(rl, cloudDeployEnv),
+      usedCloudSupabase: true,
+      cloudDeployEnv,
+    };
   }
 
   const envContent = readEnvContent();
@@ -304,10 +322,13 @@ async function setupSupabase(
   return { rl, usedCloudSupabase: false };
 }
 
-async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterface> {
+async function setupCloudSupabase(
+  rl: ReadlineInterface,
+  cloudDeployEnv: Record<string, string>,
+): Promise<ReadlineInterface> {
   console.log("\nCloud Supabase setup");
   console.log(
-    "You only need the project ref up front. After link/migrations/bootstrap, init fetches API keys via the Supabase CLI and writes them to .env.local (or prompts you to paste them if the CLI returns redacted values).",
+    "You only need the project ref up front. After link/migrations/bootstrap, init fetches API keys via the Supabase CLI and stores them for Vercel sync only (not .env.local).",
   );
 
   const projectRef = await prompt(rl, "Supabase project ref");
@@ -398,8 +419,8 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
     keys.secretKey = secretKey;
   }
 
-  writeCloudSupabaseEnv(ENV_FILE, ENV_EXAMPLE, keys);
-  console.log(`\nWrote cloud Supabase keys to ${displayPath(ENV_FILE)}`);
+  assignCloudSupabaseEnv(keys, cloudDeployEnv);
+  console.log("\nCollected cloud Supabase keys for Vercel sync (not written to .env.local).");
 
   const seedAdmin = await promptYesNo(
     activeRl,
@@ -418,15 +439,18 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
       throw new Error("Admin password is required to seed a cloud admin user.");
     }
 
-    seedCloudAdmin(ENV_FILE, ENV_EXAMPLE, email, password);
+    seedCloudAdmin(keys, email, password, cloudDeployEnv);
     activeRl = createReadline();
     console.log(`\nAdmin user ready: ${email}`);
+    console.log("Admin credentials were stored for Vercel sync only (not written to .env.local).");
   }
 
   return activeRl;
 }
 
-async function promptVercelTeam(rl: ReadlineInterface): Promise<string> {
+async function promptVercelTeam(
+  rl: ReadlineInterface,
+): Promise<{ scope: string; rl: ReadlineInterface }> {
   closeReadline(rl);
   let teams: VercelTeam[];
   try {
@@ -460,13 +484,16 @@ async function promptVercelTeam(rl: ReadlineInterface): Promise<string> {
     const selected = resolveVercelTeamSelection(answer, teams);
     if (selected) {
       console.log(`Using Vercel team: ${selected.name} (${selected.slug})`);
-      return selected.slug;
+      return { scope: selected.slug, rl };
     }
     console.log("Please enter a valid team number or slug.");
   }
 }
 
-async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInterface> {
+async function setupVercelDeployment(
+  rl: ReadlineInterface,
+  cloudDeployEnv: Record<string, string>,
+): Promise<ReadlineInterface> {
   if (!isVercelCliAvailable()) {
     console.log(
       "\nVercel CLI not found. Install it globally, then re-run init to link and sync env vars.",
@@ -483,7 +510,9 @@ async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInt
 
   let vercelScope: string | undefined;
   if (!isVercelLinked()) {
-    vercelScope = await promptVercelTeam(rl);
+    const teamSelection = await promptVercelTeam(rl);
+    vercelScope = teamSelection.scope;
+    rl = teamSelection.rl;
   }
 
   if (!isVercelLinked()) {
@@ -515,21 +544,19 @@ async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInt
     console.log("\nAlready linked to a Vercel project (.vercel/project.json).");
   }
 
-  let envContent = readEnvContent();
   const productionUrl = resolveVercelProductionUrl(vercelScope);
   if (productionUrl) {
-    envContent = setEnvLine(envContent, "NEXT_PUBLIC_APP_URL", productionUrl);
-    writeEnvFile(ENV_FILE, envContent);
-    console.log(`\nSet NEXT_PUBLIC_APP_URL from Vercel: ${productionUrl}`);
+    cloudDeployEnv.NEXT_PUBLIC_APP_URL = productionUrl;
+    console.log(`\nSet NEXT_PUBLIC_APP_URL for Vercel: ${productionUrl}`);
   } else {
     console.log(
-      "\nCould not resolve a production URL from Vercel yet. Deploy once, then re-run init or set NEXT_PUBLIC_APP_URL manually.",
+      "\nCould not resolve a production URL from Vercel yet. Deploy once, then re-run init or set NEXT_PUBLIC_APP_URL on Vercel manually.",
     );
   }
 
   closeReadline(rl);
   try {
-    const pushed = pushEnvToVercel(envContent, vercelScope);
+    const pushed = pushEnvToVercel(cloudDeployEnv, vercelScope);
     rl = createReadline();
     if (pushed.length) {
       console.log("\nSynced env vars to Vercel (production, preview, development):");
@@ -538,7 +565,7 @@ async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInt
       }
     } else {
       console.log(
-        "\nNo env vars were synced to Vercel (missing or placeholder values in .env.local).",
+        "\nNo env vars were synced to Vercel (missing or placeholder values in the cloud deploy env).",
       );
     }
   } catch (error) {
@@ -552,6 +579,7 @@ async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInt
 
 async function configureChannelsAndIntegrations(
   rl: ReadlineInterface,
+  cloudDeployEnv?: Record<string, string>,
 ): Promise<void> {
   console.log("\nAvailable channels: email");
   console.log("Available integrations: resend");
@@ -597,12 +625,20 @@ async function configureChannelsAndIntegrations(
     ] as const) {
       const value = await promptEnvValue(rl, envContent, entry.key, entry);
       if (value) {
-        envContent = setEnvLine(envContent, entry.key, value);
+        envContent = setTrackedEnvLine(
+          envContent,
+          entry.key,
+          value,
+          cloudDeployEnv,
+        );
       }
     }
 
-    const resendApiKey = getEnvValue(envContent, "RESEND_API_KEY");
-    let appUrl = getEnvValue(envContent, "NEXT_PUBLIC_APP_URL");
+    const resendApiKey =
+      cloudDeployEnv?.RESEND_API_KEY ?? getEnvValue(envContent, "RESEND_API_KEY");
+    let appUrl =
+      cloudDeployEnv?.NEXT_PUBLIC_APP_URL ??
+      getEnvValue(envContent, "NEXT_PUBLIC_APP_URL");
     let webhookAppUrl = appUrl && isHttpsAppUrl(appUrl) ? appUrl : null;
 
     if (appUrl && !webhookAppUrl) {
@@ -613,10 +649,11 @@ async function configureChannelsAndIntegrations(
       if (tunnelUrl) {
         webhookAppUrl = tunnelUrl;
         if (await promptUseTunnelAsAppUrl(rl, webhookAppUrl)) {
-          envContent = setEnvLine(
+          envContent = setTrackedEnvLine(
             envContent,
             "NEXT_PUBLIC_APP_URL",
             webhookAppUrl,
+            cloudDeployEnv,
           );
           appUrl = webhookAppUrl;
         }
@@ -624,15 +661,17 @@ async function configureChannelsAndIntegrations(
     }
 
     const hasInboundSecret = Boolean(
-      getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET"),
+      cloudDeployEnv?.RESEND_INBOUND_WEBHOOK_SECRET ??
+        getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET"),
     );
 
+    const envTargetLabel = cloudDeployEnv ? "Vercel" : ".env.local";
     const provisionWebhooks =
       resendApiKey &&
       webhookAppUrl &&
       (await promptYesNo(
         rl,
-        "Create Resend webhooks via API (saves signing secrets to .env.local)?",
+        `Create Resend webhooks via API (saves signing secrets to ${envTargetLabel})?`,
         !hasInboundSecret,
       ));
 
@@ -642,15 +681,17 @@ async function configureChannelsAndIntegrations(
           apiKey: resendApiKey,
           appUrl: webhookAppUrl,
         });
-        envContent = setEnvLine(
+        envContent = setTrackedEnvLine(
           envContent,
           "RESEND_INBOUND_WEBHOOK_SECRET",
           result.inboundSigningSecret,
+          cloudDeployEnv,
         );
-        envContent = setEnvLine(
+        envContent = setTrackedEnvLine(
           envContent,
           "RESEND_EVENTS_WEBHOOK_SECRET",
           result.eventsSigningSecret,
+          cloudDeployEnv,
         );
         console.log("\nResend webhooks:");
         console.log(
@@ -672,7 +713,12 @@ async function configureChannelsAndIntegrations(
       );
     }
 
-    if (!getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET")) {
+    if (
+      !(
+        cloudDeployEnv?.RESEND_INBOUND_WEBHOOK_SECRET ??
+        getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET")
+      )
+    ) {
       const inboundSecret = await promptEnvValue(
         rl,
         envContent,
@@ -683,15 +729,21 @@ async function configureChannelsAndIntegrations(
         },
       );
       if (inboundSecret) {
-        envContent = setEnvLine(
+        envContent = setTrackedEnvLine(
           envContent,
           "RESEND_INBOUND_WEBHOOK_SECRET",
           inboundSecret,
+          cloudDeployEnv,
         );
       }
     }
 
-    if (!getEnvValue(envContent, "RESEND_EVENTS_WEBHOOK_SECRET")) {
+    if (
+      !(
+        cloudDeployEnv?.RESEND_EVENTS_WEBHOOK_SECRET ??
+        getEnvValue(envContent, "RESEND_EVENTS_WEBHOOK_SECRET")
+      )
+    ) {
       const eventsSecret = await promptEnvValue(
         rl,
         envContent,
@@ -702,10 +754,11 @@ async function configureChannelsAndIntegrations(
         },
       );
       if (eventsSecret) {
-        envContent = setEnvLine(
+        envContent = setTrackedEnvLine(
           envContent,
           "RESEND_EVENTS_WEBHOOK_SECRET",
           eventsSecret,
+          cloudDeployEnv,
         );
       }
     }
@@ -725,16 +778,25 @@ async function configureChannelsAndIntegrations(
     ] as const) {
       const value = await promptEnvValue(rl, envContent, entry.key, entry);
       if (value) {
-        envContent = setEnvLine(envContent, entry.key, value);
+        envContent = setTrackedEnvLine(
+          envContent,
+          entry.key,
+          value,
+          cloudDeployEnv,
+        );
       }
     }
   }
 
-  writeEnvFile(ENV_FILE, envContent);
   writeConfig(nextConfig);
 
   console.log("\nWrote:");
-  console.log(`  ${displayPath(ENV_FILE)}`);
+  if (cloudDeployEnv) {
+    console.log("  Vercel env vars (not written to .env.local)");
+  } else {
+    writeEnvFile(ENV_FILE, envContent);
+    console.log(`  ${displayPath(ENV_FILE)}`);
+  }
   console.log(`  ${displayPath(CONFIG_FILE)}`);
 }
 
@@ -748,9 +810,9 @@ async function init(args: string[]): Promise<void> {
     const supabaseContext = await setupSupabase(rl, supabaseTarget);
     rl = supabaseContext.rl;
     usedCloudSupabase = supabaseContext.usedCloudSupabase;
-    await configureChannelsAndIntegrations(rl);
-    if (usedCloudSupabase) {
-      rl = await setupVercelDeployment(rl);
+    await configureChannelsAndIntegrations(rl, supabaseContext.cloudDeployEnv);
+    if (usedCloudSupabase && supabaseContext.cloudDeployEnv) {
+      rl = await setupVercelDeployment(rl, supabaseContext.cloudDeployEnv);
     }
   } finally {
     rl.close();

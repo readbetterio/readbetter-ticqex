@@ -18,6 +18,8 @@ export const VERCEL_SYNC_ENV_KEYS = [
   "RESEND_EVENTS_WEBHOOK_SECRET",
   "SUPPORT_EMAIL",
   "SUPPORT_FROM_NAME",
+  "SEED_ADMIN_EMAIL",
+  "SEED_ADMIN_PASSWORD",
 ] as const;
 
 const VERCEL_SENSITIVE_ENV_KEYS = new Set<string>([
@@ -25,6 +27,8 @@ const VERCEL_SENSITIVE_ENV_KEYS = new Set<string>([
   "RESEND_API_KEY",
   "RESEND_INBOUND_WEBHOOK_SECRET",
   "RESEND_EVENTS_WEBHOOK_SECRET",
+  "SEED_ADMIN_EMAIL",
+  "SEED_ADMIN_PASSWORD",
 ]);
 
 type VercelProjectLink = {
@@ -179,6 +183,21 @@ function parseEnvValues(content: string): Map<string, string> {
   return values;
 }
 
+function resolveEnvValues(
+  envSource: string | Record<string, string>,
+): Map<string, string> {
+  if (typeof envSource === "string") {
+    return parseEnvValues(envSource);
+  }
+
+  const values = new Map<string, string>();
+  for (const [key, value] of Object.entries(envSource)) {
+    const trimmed = value.trim();
+    if (trimmed) values.set(key, trimmed);
+  }
+  return values;
+}
+
 function isPlaceholderEnvValue(value: string): boolean {
   return (
     value.endsWith("...") ||
@@ -187,8 +206,11 @@ function isPlaceholderEnvValue(value: string): boolean {
   );
 }
 
-export function pushEnvToVercel(envContent: string, scope?: string): string[] {
-  const values = parseEnvValues(envContent);
+export function pushEnvToVercel(
+  envSource: string | Record<string, string>,
+  scope?: string,
+): string[] {
+  const values = resolveEnvValues(envSource);
   const pushed: string[] = [];
 
   for (const key of VERCEL_SYNC_ENV_KEYS) {
