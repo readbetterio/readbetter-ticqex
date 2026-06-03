@@ -24,8 +24,9 @@ import {
   isVercelLinked,
   linkVercelProject,
   listVercelTeams,
+  provisionVercelProductionUrl,
   pushEnvToVercel,
-  resolveVercelProductionUrl,
+  readLinkedVercelProjectName,
   resolveVercelTeamSelection,
   type VercelTeam,
 } from "./lib/vercel-setup";
@@ -519,6 +520,7 @@ async function linkVercelForCloudInit(
   if (!linkVercel) return { rl, linked: false };
 
   let vercelScope: string | undefined;
+  let projectName = readLinkedVercelProjectName() ?? defaultVercelProjectName();
   if (!isVercelLinked()) {
     const teamSelection = await promptVercelTeam(rl);
     vercelScope = teamSelection.scope;
@@ -533,7 +535,7 @@ async function linkVercelForCloudInit(
     );
 
     const defaultName = defaultVercelProjectName();
-    const projectName = await prompt(
+    projectName = await prompt(
       rl,
       projectExists ? "Existing Vercel project name" : "New Vercel project name",
       defaultName,
@@ -552,9 +554,12 @@ async function linkVercelForCloudInit(
     rl = createReadline();
   } else {
     console.log("\nAlready linked to a Vercel project (.vercel/project.json).");
+    projectName = readLinkedVercelProjectName() ?? projectName;
   }
 
-  const productionUrl = resolveVercelProductionUrl(vercelScope);
+  closeReadline(rl);
+  const productionUrl = provisionVercelProductionUrl(vercelScope, projectName);
+  rl = createReadline();
   if (productionUrl) {
     cloudDeployEnv.NEXT_PUBLIC_APP_URL = productionUrl;
     console.log(`\nUsing Vercel production URL: ${productionUrl}`);

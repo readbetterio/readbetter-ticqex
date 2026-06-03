@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defaultVercelProjectName,
+  normalizeVercelProductionUrl,
   parseVercelTeamsJson,
   resolveVercelTeamSelection,
   type VercelTeam,
@@ -86,5 +87,21 @@ describe("resolveVercelTeamSelection", () => {
   it("returns null for invalid input", () => {
     expect(resolveVercelTeamSelection("unknown", teams)).toBeNull();
     expect(resolveVercelTeamSelection("99", teams)).toBeNull();
+  });
+});
+
+describe("normalizeVercelProductionUrl", () => {
+  it("rejects placeholder production URLs from the CLI", () => {
+    expect(normalizeVercelProductionUrl("--")).toBeNull();
+    expect(normalizeVercelProductionUrl("https://--")).toBeNull();
+  });
+
+  it("normalizes valid production URLs", () => {
+    expect(normalizeVercelProductionUrl("readbetter-ticqex.vercel.app")).toBe(
+      "https://readbetter-ticqex.vercel.app",
+    );
+    expect(normalizeVercelProductionUrl("https://readbetter-ticqex.vercel.app/")).toBe(
+      "https://readbetter-ticqex.vercel.app",
+    );
   });
 });

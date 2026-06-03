@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { runVercel } from "./run-command";
+import { readGitOriginRemote, runVercel, sleepMs } from "./run-command";
 
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const VERCEL_DIR = path.join(ROOT, ".vercel");
@@ -34,6 +34,15 @@ const VERCEL_SENSITIVE_ENV_KEYS = new Set<string>([
 type VercelProjectLink = {
   projectId?: string;
   orgId?: string;
+  projectName?: string;
+};
+
+type VercelDeploymentList = {
+  deployments?: Array<{
+    url?: string;
+    state?: string;
+    target?: string;
+  }>;
 };
 
 export type VercelTeam = {
@@ -76,6 +85,45 @@ export function isVercelLinked(): boolean {
 export function readVercelProjectLink(): VercelProjectLink | null {
   if (!isVercelLinked()) return null;
   return JSON.parse(fs.readFileSync(VERCEL_PROJECT_FILE, "utf8")) as VercelProjectLink;
+}
+
+export function readLinkedVercelProjectName(): string | null {
+  return readVercelProjectLink()?.projectName?.trim() || null;
+}
+
+export function defaultVercelProjectUrl(projectName: string): string {
+  return `https://${projectName}.vercel.app`;
+}
+
+export function normalizeVercelProductionUrl(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+
+  const trimmed = raw.trim();
+  if (
+    !trimmed ||
+    trimmed === "--" ||
+    trimmed === "https://--" ||
+    trimmed === "http://--"
+  ) {
+    return null;
+  }
+
+  const url = trimmed.startsWith("http") ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(url);
+    if (
+      !parsed.hostname ||
+      parsed.hostname === "--" ||
+      !parsed.hostname.includes(".")
+    ) {
+      return null;
+    }
+    return url.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
 }
 
 export function defaultVercelProjectName(): string {
@@ -149,7 +197,7 @@ export function createVercelProject(projectName: string, scope?: string): void {
   runVercel(appendVercelScope(["project", "add", projectName], scope));
 }
 
-export function resolveVercelProductionUrl(scope?: string): string | null {
+function resolveVercelProductionUrlFromProjectList(scope?: string): string | null {
   const link = readVercelProjectLink();
   if (!link?.projectId) return null;
 
@@ -165,10 +213,117 @@ export function resolveVercelProductionUrl(scope?: string): string | null {
 
   const parsed = JSON.parse(output.slice(start, end + 1)) as VercelProjectList;
   const project = parsed.projects?.find((entry) => entry.id === link.projectId);
-  const url = project?.latestProductionUrl?.trim();
-  if (!url) return null;
+  return normalizeVercelProductionUrl(project?.latestProductionUrl);
+}
 
-  return url.startsWith("http") ? url : `https://${url}`;
+function resolveLatestDeploymentProductionUrl(scope?: string): string | null {
+  try {
+    const output = runVercel(
+      appendVercelScope(
+        ["ls", "--environment", "production", "--format", "json", "--yes"],
+        scope,
+      ),
+      { capture: true },
+    );
+    const start = output.indexOf("{");
+    const end = output.lastIndexOf("}");
+    if (start === -1 || end === -1) return null;
+
+    const parsed = JSON.parse(output.slice(start, end + 1)) as VercelDeploymentList;
+    for (const deployment of parsed.deployments ?? []) {
+      if (deployment.state !== "READY") continue;
+      const url = normalizeVercelProductionUrl(deployment.url);
+      if (url) return url;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function resolveVercelProductionUrl(
+  scope?: string,
+  projectName?: string,
+): string | null {
+  const fromProjectList = resolveVercelProductionUrlFromProjectList(scope);
+  if (fromProjectList) return fromProjectList;
+
+  const fromDeployment = resolveLatestDeploymentProductionUrl(scope);
+  if (fromDeployment) return fromDeployment;
+
+  const name = projectName ?? readLinkedVercelProjectName();
+  return name ? defaultVercelProjectUrl(name) : null;
+}
+
+export function connectVercelGitRepository(scope?: string): boolean {
+  const remote = readGitOriginRemote();
+  if (!remote) {
+    console.log("\nNo git origin remote found; skipping Vercel Git connection.");
+    return false;
+  }
+
+  console.log(`\nConnecting Vercel project to git remote: ${remote}`);
+  try {
+    runVercel(appendVercelScope(["git", "connect", remote], scope));
+    console.log("Vercel Git repository connected.");
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log(`\nCould not connect Vercel Git repository: ${message}`);
+    return false;
+  }
+}
+
+export function waitForVercelProductionUrl(
+  scope?: string,
+  projectName?: string,
+  options: { maxWaitMs?: number; pollIntervalMs?: number } = {},
+): string | null {
+  const maxWaitMs = options.maxWaitMs ?? 180_000;
+  const pollIntervalMs = options.pollIntervalMs ?? 5_000;
+  const fallbackName = projectName ?? readLinkedVercelProjectName();
+  const fallback = fallbackName ? defaultVercelProjectUrl(fallbackName) : null;
+  const deadline = Date.now() + maxWaitMs;
+
+  console.log("\nWaiting for Vercel production URL...");
+  while (Date.now() < deadline) {
+    const fromProjectList = resolveVercelProductionUrlFromProjectList(scope);
+    if (fromProjectList) {
+      console.log(`Production URL ready: ${fromProjectList}`);
+      return fromProjectList;
+    }
+
+    const fromDeployment = resolveLatestDeploymentProductionUrl(scope);
+    if (fromDeployment) {
+      console.log(`Production URL ready: ${fromDeployment}`);
+      return fromDeployment;
+    }
+
+    sleepMs(pollIntervalMs);
+  }
+
+  if (fallback) {
+    console.log(
+      `Timed out waiting for a deployed URL; using default project URL: ${fallback}`,
+    );
+    return fallback;
+  }
+
+  return null;
+}
+
+export function provisionVercelProductionUrl(
+  scope?: string,
+  projectName?: string,
+): string | null {
+  const fallback = resolveVercelProductionUrl(scope, projectName);
+  const gitConnected = connectVercelGitRepository(scope);
+  if (!gitConnected) {
+    return fallback;
+  }
+
+  return waitForVercelProductionUrl(scope, projectName) ?? fallback;
 }
 
 function parseEnvValues(content: string): Map<string, string> {

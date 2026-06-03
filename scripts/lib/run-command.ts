@@ -129,3 +129,27 @@ export function runVercel(
 
   return outputText;
 }
+
+export function readGitOriginRemote(): string | null {
+  const result = spawnSync("git", ["remote", "get-url", "origin"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const remote = result.stdout.trim();
+  return remote || null;
+}
+
+export function sleepMs(ms: number): void {
+  if (ms <= 0) {
+    return;
+  }
+
+  spawnSync("sleep", [String(Math.max(1, Math.ceil(ms / 1000)))], {
+    stdio: "ignore",
+  });
+}
