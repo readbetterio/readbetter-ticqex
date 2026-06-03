@@ -6,11 +6,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 ![Status: pre-1.0](https://img.shields.io/badge/status-pre--1.0-orange.svg)
 
-Ticqex is an agent-native support ticket management platform. It's a thin data and UX layer for you to collaborate in with any AI agent.
-Ticqex treats AI agents as first-class operators: every action is
-available over a typed REST API (`/api/v1/*`) and an MCP server, so agents can
-triage, respond, and manage tickets — while humans supervise on a realtime
-Kanban board.
+Ticqex is an agentic infrastructure layer for support ticket management —
+designed to plug into the agent(s) and AI workflow of your choice. It provides
+the data model, APIs, and supervision surface; you bring the intelligence.
+
+Every action is available over a typed REST API (`/api/v1/*`) and an MCP server,
+so agents are first-class operators that can triage, respond, and manage tickets
+— while humans stay in the loop on a realtime Kanban board.
 
 A composable channel and integration layer (registry-based) adapts the platform
 to however support reaches you. Email parsing ships onboard — inbound messages

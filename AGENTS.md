@@ -6,11 +6,14 @@ contribution process lives in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## What this project is
 
-Ticqex is an agent-first support platform: every ticket action is exposed over a
-typed REST API (`/api/v1/*`) and an MCP server, so AI agents are first-class
-operators alongside humans, who supervise on a realtime Kanban admin. A
-composable, registry-based channel/integration layer adapts the platform to each
-deployment; email parsing ships onboard (inbound → tickets, outbound via Resend).
+Ticqex is an agentic infrastructure layer for support ticket management, meant to
+plug into the agent(s) and AI workflow of your choice. It provides the data model,
+APIs, and human supervision surface; you bring the intelligence. Every ticket
+action is exposed over a typed REST API (`/api/v1/*`) and an MCP server, so AI
+agents are first-class operators alongside humans, who supervise on a realtime
+Kanban admin. A composable, registry-based channel/integration layer adapts the
+platform to each deployment; email parsing ships onboard (inbound → tickets,
+outbound via Resend).
 Built on Supabase (Postgres, Auth, Realtime) and Next.js (App Router), async
 email work runs in-process via Next.js `after()` — there is no external job
 runner.
@@ -94,6 +97,9 @@ return `{"status":"ok","checks":{"app":"ok","database":"ok"}}`.
 - Shared client/server code goes in `shared/`; keep it free of server-only deps.
 - Prefer the registry pattern (`shared/registry/`) for channels/integrations.
 - Comments explain *why*, not *what*. Avoid narrating obvious code.
+- **UI/UX copy:** do not sprinkle filler subtitles or blurbs under every page title
+  or card — navigation and labels already name the surface. Add text only when it
+  teaches something non-obvious (constraints, side effects, empty states, errors).
 
 ## Gotchas
 
