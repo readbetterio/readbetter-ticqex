@@ -61,3 +61,49 @@ export function runPnpm(args: string[]): void {
     throw new Error(`pnpm ${args.join(" ")} failed`);
   }
 }
+
+export function runSupabaseCapture(args: string[]): string {
+  const result = spawnSync(SUPABASE_BIN, args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: childProcessEnv(),
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const outputText = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+  if (result.status !== 0) {
+    throw new Error(
+      outputText || `supabase ${args.join(" ")} failed`,
+    );
+  }
+
+  return outputText;
+}
+
+export function runVercel(
+  args: string[],
+  options: { input?: string; capture?: boolean } = {},
+): string {
+  console.log(`\n> vercel ${args.join(" ")}`);
+  const capture = options.capture ?? false;
+  const result = spawnSync("vercel", args, {
+    cwd: ROOT,
+    encoding: "utf8",
+    stdio: capture ? "pipe" : "inherit",
+    input: options.input,
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  const outputText = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+  if (result.status !== 0) {
+    throw new Error(outputText || `vercel ${args.join(" ")} failed`);
+  }
+
+  return outputText;
+}

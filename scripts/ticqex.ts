@@ -3,11 +3,26 @@ import path from "node:path";
 import process from "node:process";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import {
+  bootstrapCloudDatabase,
+  fetchCloudSupabaseKeys,
+  seedCloudAdmin,
+  writeCloudSupabaseEnv,
+} from "./lib/cloud-supabase";
+import {
   closeReadline,
   createReadline,
   runPnpm,
   runSupabase,
 } from "./lib/run-command";
+import {
+  createVercelProject,
+  defaultVercelProjectName,
+  isVercelCliAvailable,
+  isVercelLinked,
+  linkVercelProject,
+  pushEnvToVercel,
+  resolveVercelProductionUrl,
+} from "./lib/vercel-setup";
 import {
   defaultTicqexConfig,
   loadTicqexConfig,
@@ -28,6 +43,11 @@ import { isHttpsAppUrl } from "@shared/integrations/resend/webhook-endpoints";
 
 type DbSetupMode = "skip" | "start" | "reset";
 type SupabaseTarget = "local" | "cloud" | "skip";
+
+type InitContext = {
+  rl: ReadlineInterface;
+  usedCloudSupabase: boolean;
+};
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const ENV_EXAMPLE = path.join(ROOT, ".env.example");
@@ -211,7 +231,7 @@ async function promptEnvValue(
 async function setupSupabase(
   rl: ReadlineInterface,
   requestedTarget: SupabaseTarget | null,
-): Promise<ReadlineInterface> {
+): Promise<InitContext> {
   const target =
     requestedTarget ??
     (await promptChoice(
@@ -223,11 +243,11 @@ async function setupSupabase(
 
   if (target === "skip") {
     console.log("\nSkipping Supabase setup.");
-    return rl;
+    return { rl, usedCloudSupabase: false };
   }
 
   if (target === "cloud") {
-    return setupCloudSupabase(rl);
+    return { rl: await setupCloudSupabase(rl), usedCloudSupabase: true };
   }
 
   const envContent = readEnvContent();
@@ -239,7 +259,7 @@ async function setupSupabase(
     defaultMode,
   );
 
-  if (mode === "skip") return rl;
+  if (mode === "skip") return { rl, usedCloudSupabase: false };
 
   if (mode === "reset") {
     const confirmed = await promptYesNo(
@@ -247,7 +267,7 @@ async function setupSupabase(
       "Reset wipes the local Supabase database. Continue?",
       false,
     );
-    if (!confirmed) return rl;
+    if (!confirmed) return { rl, usedCloudSupabase: false };
     closeReadline(rl);
     runSupabase(["db", "reset", "--yes"]);
     rl = createReadline();
@@ -271,13 +291,13 @@ async function setupSupabase(
     runPnpm(["db:seed-admin"]);
   }
 
-  return rl;
+  return { rl, usedCloudSupabase: false };
 }
 
 async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterface> {
   console.log("\nCloud Supabase setup");
   console.log(
-    "This links and optionally pushes migrations. It does not write cloud Supabase keys.",
+    "Links the project, optionally pushes migrations, writes cloud keys to .env.local, and can seed an admin user.",
   );
 
   const projectRef = await prompt(rl, "Supabase project ref");
@@ -289,6 +309,7 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
   runSupabase(["link", "--project-ref", projectRef, "--yes"]);
 
   let activeRl = createReadline();
+  let migrationsPushed = false;
   const pushMigrations = await promptYesNo(
     activeRl,
     "Push local migrations to the linked cloud project?",
@@ -305,20 +326,130 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<ReadlineInterf
       // Init already confirmed; --yes plus closed readline so the CLI owns stdin.
       runSupabase(["db", "push", "--linked", "--yes"], { input: "y\n" });
       activeRl = createReadline();
+      migrationsPushed = true;
     }
   }
 
-  console.log(
-    "\nSet these Supabase environment variables in your deployment or .env.local:",
+  const bootstrapDb = await promptYesNo(
+    activeRl,
+    "Bootstrap cloud database (statuses + settings)?",
+    migrationsPushed,
   );
-  console.log("  NEXT_PUBLIC_SUPABASE_URL");
-  console.log("  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
-  console.log("  SUPABASE_SECRET_KEY");
-  console.log(
-    "\nFind the values in Supabase project settings. The CLI intentionally does not fetch or store cloud keys.",
+  if (bootstrapDb) {
+    closeReadline(activeRl);
+    bootstrapCloudDatabase();
+    activeRl = createReadline();
+  }
+
+  closeReadline(activeRl);
+  const keys = fetchCloudSupabaseKeys(projectRef);
+  writeCloudSupabaseEnv(ENV_FILE, ENV_EXAMPLE, keys);
+  activeRl = createReadline();
+  console.log(`\nWrote cloud Supabase keys to ${displayPath(ENV_FILE)}`);
+
+  const seedAdmin = await promptYesNo(
+    activeRl,
+    "Create an admin user in cloud Supabase?",
+    false,
   );
+  if (seedAdmin) {
+    const email = await prompt(activeRl, "Admin email");
+    if (!email) {
+      throw new Error("Admin email is required to seed a cloud admin user.");
+    }
+    const password = await prompt(activeRl, "Admin password");
+    if (!password) {
+      throw new Error("Admin password is required to seed a cloud admin user.");
+    }
+
+    closeReadline(activeRl);
+    seedCloudAdmin(ENV_FILE, ENV_EXAMPLE, email, password);
+    activeRl = createReadline();
+    console.log(`\nAdmin user ready: ${email}`);
+  }
 
   return activeRl;
+}
+
+async function setupVercelDeployment(rl: ReadlineInterface): Promise<ReadlineInterface> {
+  if (!isVercelCliAvailable()) {
+    console.log(
+      "\nVercel CLI not found. Install it globally, then re-run init to link and sync env vars.",
+    );
+    return rl;
+  }
+
+  const linkVercel = await promptYesNo(
+    rl,
+    "\nLink this repo to a Vercel project and sync env vars?",
+    false,
+  );
+  if (!linkVercel) return rl;
+
+  closeReadline(rl);
+  rl = createReadline();
+  if (!isVercelLinked()) {
+    const projectExists = await promptYesNo(
+      rl,
+      "Does a Vercel project already exist for this app?",
+      false,
+    );
+
+    const defaultName = defaultVercelProjectName();
+    const projectName = await prompt(
+      rl,
+      projectExists ? "Existing Vercel project name" : "New Vercel project name",
+      defaultName,
+    );
+    if (!projectName) {
+      throw new Error("Vercel project name is required.");
+    }
+
+    closeReadline(rl);
+    if (projectExists) {
+      linkVercelProject(projectName);
+    } else {
+      createVercelProject(projectName);
+      linkVercelProject(projectName);
+    }
+    rl = createReadline();
+  } else {
+    console.log("\nAlready linked to a Vercel project (.vercel/project.json).");
+  }
+
+  let envContent = readEnvContent();
+  const productionUrl = resolveVercelProductionUrl();
+  if (productionUrl) {
+    envContent = setEnvLine(envContent, "NEXT_PUBLIC_APP_URL", productionUrl);
+    writeEnvFile(ENV_FILE, envContent);
+    console.log(`\nSet NEXT_PUBLIC_APP_URL from Vercel: ${productionUrl}`);
+  } else {
+    console.log(
+      "\nCould not resolve a production URL from Vercel yet. Deploy once, then re-run init or set NEXT_PUBLIC_APP_URL manually.",
+    );
+  }
+
+  closeReadline(rl);
+  try {
+    const pushed = pushEnvToVercel(envContent);
+    rl = createReadline();
+    if (pushed.length) {
+      console.log("\nSynced env vars to Vercel (production, preview, development):");
+      for (const key of pushed) {
+        console.log(`  ${key}`);
+      }
+    } else {
+      console.log(
+        "\nNo env vars were synced to Vercel (missing or placeholder values in .env.local).",
+      );
+    }
+  } catch (error) {
+    rl = createReadline();
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`\nCould not sync env vars to Vercel: ${message}`);
+  }
+
+  return rl;
 }
 
 async function configureChannelsAndIntegrations(
@@ -512,11 +643,17 @@ async function configureChannelsAndIntegrations(
 async function init(args: string[]): Promise<void> {
   const supabaseTarget = parseSupabaseTarget(args);
   let rl = createReadline();
+  let usedCloudSupabase = false;
 
   try {
     console.log("Ticqex init\n");
-    rl = await setupSupabase(rl, supabaseTarget);
+    const supabaseContext = await setupSupabase(rl, supabaseTarget);
+    rl = supabaseContext.rl;
+    usedCloudSupabase = supabaseContext.usedCloudSupabase;
     await configureChannelsAndIntegrations(rl);
+    if (usedCloudSupabase) {
+      rl = await setupVercelDeployment(rl);
+    }
   } finally {
     rl.close();
   }

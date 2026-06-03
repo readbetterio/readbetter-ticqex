@@ -47,6 +47,8 @@ Optional when enabling the email channel (on by default):
 
 - **[Resend](https://resend.com/) + API key** — inbound/outbound mail and webhooks use Resend; disable email in `pnpm ticqex init` if you do not need it yet
 
+For cloud deployment, init can also wire up Supabase Cloud and Vercel when the CLIs are installed and logged in ([Supabase CLI](https://supabase.com/docs/guides/cli), [Vercel CLI](https://vercel.com/docs/cli)).
+
 ### 1. Install dependencies
 
 ```bash
@@ -55,11 +57,15 @@ pnpm install
 
 ### 2. Interactive setup
 
-Use the repo-local CLI to configure Supabase and email (Resend):
+Use the repo-local CLI to configure Supabase, email (Resend), and optionally Vercel:
 
 ```bash
 pnpm ticqex init
 ```
+
+**Supabase (local or cloud):** choose `local` to start Docker Supabase, sync keys to `.env.local`, and optionally seed an admin user; choose `cloud` to link a Supabase project, push migrations, bootstrap statuses/settings, fetch cloud API keys into `.env.local`, and optionally create a cloud admin user (email + password).
+
+**Vercel (cloud flow):** after channel/env setup, init can link an existing Vercel project or create and link a new one, pull the production URL into `NEXT_PUBLIC_APP_URL`, and sync env vars to Vercel (production, preview, development) via the Vercel CLI.
 
 **Default:** the email channel and Resend integration stay **on** (`config/ticqex.config.json`). With email enabled, you need a Resend API key (`re_…` from the [Resend dashboard](https://resend.com/api-keys)). Init defaults `NEXT_PUBLIC_APP_URL` to `http://localhost:3000` for the admin UI. **Inbound email locally requires an HTTPS tunnel** — init explains this and lets you start **ngrok** (`ngrok http 3000`, reused if already running) or paste a tunnel URL (Cloudflare, etc.), then optionally register Resend webhooks via API. You also set support sender email/name.
 
@@ -83,9 +89,9 @@ For Supabase Cloud, run:
 pnpm ticqex init --supabase cloud
 ```
 
-The cloud flow links the project and can push migrations, but it does not fetch or write cloud keys. It prints the Supabase env vars you need to set in `.env.local` or deployment settings.
+The cloud flow links your project, can push migrations and bootstrap the database, writes Supabase URL and API keys to `.env.local`, and can seed an admin user. When you opt in, it also links or creates a Vercel project and syncs deployment env vars.
 
-The CLI writes `.env.local` (ignored by git — set the same keys in Vercel env vars for deploy) and may update `config/ticqex.config.json` (committed — edit and push to change channels/integrations on Vercel). Use `config/ticqex.config.example.json` as the template when bootstrapping a fresh clone.
+The CLI writes `.env.local` (ignored by git) and may update `config/ticqex.config.json` (committed — edit and push to change channels/integrations on Vercel). Use `config/ticqex.config.example.json` as the template when bootstrapping a fresh clone.
 
 After init, `pnpm config:sync` validates activation and reports planned channel field policies (database upsert comes in a later slice). Use `pnpm config:check` to verify channel/integration bindings and required env vars.
 
@@ -128,12 +134,13 @@ Async email processing uses Next.js `after()` — no external job runner require
 
 Use `http://localhost:3000` for local dev (not `127.0.0.1` — Next.js treats them as different origins).
 
-### Cloud Supabase
+### Cloud Supabase + Vercel
 
-1. Create a project at [supabase.com](https://supabase.com).
-2. `pnpm ticqex init --supabase cloud`
-3. Choose whether to push migrations to the linked project.
-4. Set cloud URL, publishable key, and secret key in `.env.local` or deployment settings.
+1. Create a project at [supabase.com](https://supabase.com) (or use an existing one).
+2. Install and log in to the [Supabase CLI](https://supabase.com/docs/guides/cli) and [Vercel CLI](https://vercel.com/docs/cli).
+3. Run `pnpm ticqex init --supabase cloud`.
+4. Follow prompts to link Supabase, push migrations, bootstrap, fetch keys, and optionally create an admin user.
+5. When asked, link an existing Vercel project or create a new one; init syncs env vars and sets `NEXT_PUBLIC_APP_URL` from the Vercel production URL when available.
 
 ## Agent onboarding
 
@@ -159,7 +166,7 @@ For HTTP-only integrations, call `/api/v1/*` with the same Bearer key.
 | `pnpm dev` | Next.js dev server (UI, API, background email) |
 | `pnpm build` | Production build |
 | `pnpm lint` | ESLint |
-| `pnpm ticqex init` | Interactive setup: Supabase, Resend API key, webhooks, and email env (email on by default) |
+| `pnpm ticqex init` | Interactive setup: local or cloud Supabase, Resend/email env, optional Vercel link + env sync |
 | `pnpm resend:setup-webhooks` | Create Resend inbound/events webhooks and write signing secrets to `.env.local` |
 | `pnpm config:check` | Validate `config/ticqex.config.json` bindings and required env vars |
 | `pnpm config:sync` | Validate activation JSON and print planned channel field sync (dry-run) |
