@@ -16,6 +16,17 @@ describe("custom field API schemas", () => {
     expect(parsed.type).toBe("select");
   });
 
+  it("accepts valid multiselect definitions", () => {
+    const parsed = createCustomFieldSchema.parse({
+      group: "ticket",
+      key: "features",
+      label: "Features",
+      type: "multiselect",
+      options: { values: ["api", "sso"] },
+    });
+    expect(parsed.type).toBe("multiselect");
+  });
+
   it("rejects select definitions without options", () => {
     const result = createCustomFieldSchema.safeParse({
       group: "ticket",

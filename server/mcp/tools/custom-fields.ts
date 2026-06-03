@@ -20,7 +20,7 @@ export function registerCustomFieldTools(server: McpServer) {
     "ticqex_list_custom_fields",
     {
       title: "List Custom Fields",
-      description: "List custom field definitions.",
+      description: "List custom field definitions. Ticket field card/ticket visibility is configured via global settings (`ticket_field_visibility` / `ticket_field_layout`).",
       inputSchema: { group: z.enum(["ticket", "contact"]).optional() },
     },
     async ({ group }) => toolResult(await listDefinitions(createAdminClient(), group)),
@@ -32,7 +32,7 @@ export function registerCustomFieldTools(server: McpServer) {
     {
       title: "Create Custom Field",
       description:
-        "Create a custom field definition (text, number, date, boolean, select, url, json). Select fields require options.values. Admin only.",
+        "Create a custom field definition (text, number, date, boolean, select, multiselect, url, json). Select and multiselect fields require options.values. Admin only.",
       inputSchema: createCustomFieldSchema.shape,
       admin: true,
     },

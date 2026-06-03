@@ -26,6 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   CUSTOM_FIELD_TYPE_LIST,
   getCustomFieldTypeMeta,
+  isOptionListType,
   isValidFieldKey,
   normalizeSelectOptions,
   parseSelectOptions,
@@ -134,8 +135,9 @@ function CustomFieldDefinitionForm({
       return;
     }
 
-    const options =
-      type === "select" ? textToSelectOptions(selectValuesText) : null;
+    const options = isOptionListType(type)
+      ? textToSelectOptions(selectValuesText)
+      : null;
     const optionsError = validateDefinitionOptions(type, options);
     if (optionsError) {
       setError(optionsError);
@@ -242,7 +244,7 @@ function CustomFieldDefinitionForm({
         </p>
       </div>
 
-      {type === "select" && (
+      {typeMeta?.supportsSelectOptions && (
         <div className="space-y-2">
           <Label htmlFor="cf-select-values">Options (one per line)</Label>
           <Textarea

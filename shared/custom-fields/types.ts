@@ -4,6 +4,7 @@ export const CUSTOM_FIELD_TYPES = [
   "date",
   "boolean",
   "select",
+  "multiselect",
   "url",
   "json",
 ] as const;
@@ -17,6 +18,10 @@ export type SelectFieldOptions = {
 };
 
 export type CustomFieldDefinitionOptions = SelectFieldOptions | null;
+
+export function isOptionListType(type: CustomFieldType): boolean {
+  return type === "select" || type === "multiselect";
+}
 
 export type CustomFieldDefinition = {
   id: string;

@@ -1,3 +1,4 @@
+import { getCustomFieldFilterOperators } from "@shared/custom-fields";
 import {
   normalizeCondition,
   type FilterOperator,
@@ -52,19 +53,7 @@ export function getUnreadOperators(): Array<"eq" | "neq"> {
 }
 
 export function getCustomFieldOperators(type: string): FilterOperator[] {
-  switch (type) {
-    case "boolean":
-      return ["eq", "neq", "empty", "not_empty"];
-    case "number":
-      return ["eq", "neq", "in", "nin", "empty", "not_empty"];
-    case "select":
-      return ["eq", "neq", "in", "nin", "empty", "not_empty"];
-    case "text":
-    case "url":
-      return ["eq", "neq", "contains", "not_contains", "empty", "not_empty"];
-    default:
-      return ["eq", "neq", "empty", "not_empty"];
-  }
+  return getCustomFieldFilterOperators(type);
 }
 
 export function operatorNeedsValues(op: FilterOperator | "any"): boolean {

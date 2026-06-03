@@ -1,5 +1,6 @@
 export {
   CUSTOM_FIELD_TYPES,
+  isOptionListType,
   type CustomFieldType,
   type CustomFieldGroup,
   type CustomFieldDefinition,
@@ -12,13 +13,21 @@ export {
   CUSTOM_FIELD_TYPE_REGISTRY,
   getCustomFieldTypeLabel,
   getCustomFieldTypeMeta,
+  type CustomFieldFilterValueMode,
   type CustomFieldTypeMeta,
 } from "./registry";
+
+export {
+  getCustomFieldFilterOperators,
+  usesMultiselectFilterSemantics,
+  usesOptionListFilterValues,
+} from "./filter-behavior";
 
 export {
   coerceCustomFieldValue,
   isValidFieldKey,
   normalizeSelectOptions,
+  parseMultiselectValue,
   parseSelectOptions,
   slugifyLabelToKey,
   validateDefinitionOptions,

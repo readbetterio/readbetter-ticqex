@@ -3,9 +3,11 @@ import { ApiError } from "@server/lib/errors";
 import { chunkArray } from "@server/lib/chunked-array";
 import {
   coerceCustomFieldValue,
+  isOptionListType,
   normalizeSelectOptions,
   parseSelectOptions,
   validateDefinitionOptions,
+  type CustomFieldDefinition,
   type CustomFieldType,
 } from "@shared/custom-fields";
 
@@ -26,7 +28,7 @@ type ValueRow = {
   value_number: number | null;
   value_date: string | null;
   value_boolean: boolean | null;
-  value_json: Record<string, unknown> | null;
+  value_json: unknown | null;
 };
 
 function valueFromRow(row: ValueRow, field: FieldRow): unknown {
@@ -39,6 +41,10 @@ function valueFromRow(row: ValueRow, field: FieldRow): unknown {
       return row.value_boolean;
     case "json":
       return row.value_json;
+    case "multiselect": {
+      if (!Array.isArray(row.value_json)) return [];
+      return row.value_json.filter((entry): entry is string => typeof entry === "string");
+    }
     default:
       return row.value_text;
   }
@@ -53,7 +59,7 @@ function rowFromCoercedValue(
     value_number: null as number | null,
     value_date: null as string | null,
     value_boolean: null as boolean | null,
-    value_json: null as Record<string, unknown> | null,
+    value_json: null as unknown | null,
   };
 
   switch (field.type) {
@@ -65,6 +71,8 @@ function rowFromCoercedValue(
       return { ...base, value_boolean: value as boolean };
     case "json":
       return { ...base, value_json: value as Record<string, unknown> };
+    case "multiselect":
+      return { ...base, value_json: value as string[] };
     default:
       return { ...base, value_text: value == null ? null : String(value) };
   }
@@ -74,7 +82,7 @@ function normalizeDefinitionOptions(
   type: CustomFieldType,
   options: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> | null {
-  if (type === "select") {
+  if (isOptionListType(type)) {
     return normalizeSelectOptions(parseSelectOptions(options));
   }
   return options && Object.keys(options).length > 0 ? options : null;
@@ -188,12 +196,12 @@ export async function setCustomFields(
 export async function listDefinitions(
   db: SupabaseClient,
   group?: "ticket" | "contact",
-) {
+): Promise<CustomFieldDefinition[]> {
   let q = db.from("custom_field_definitions").select("*").order("position");
   if (group) q = q.eq("group", group);
   const { data, error } = await q;
   if (error) throw ApiError.internal(error.message);
-  return data ?? [];
+  return (data ?? []) as CustomFieldDefinition[];
 }
 
 export async function createDefinition(

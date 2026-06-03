@@ -1,3 +1,4 @@
+import { parseMultiselectValue } from "@shared/custom-fields";
 import {
   normalizeCondition,
   type FilterOperator,
@@ -15,6 +16,41 @@ export type TicketFilterMatchTicket = {
   tags: { name: string }[];
   unread_count: number;
 };
+
+export function customFieldCandidateValues(
+  op: FilterOperator,
+  value?: string | boolean | number,
+  values?: (string | number)[],
+): string[] {
+  if (op === "in" || op === "nin") return (values ?? []).map(String);
+  if (value === undefined) return [];
+  return [String(value)];
+}
+
+export function matchesMultiselectCustomField(
+  actual: unknown,
+  op: FilterOperator,
+  value?: string | boolean | number,
+  values?: (string | number)[],
+): boolean {
+  const selected = parseMultiselectValue(actual);
+  const candidates = customFieldCandidateValues(op, value, values);
+
+  switch (op) {
+    case "empty":
+      return selected.length === 0;
+    case "not_empty":
+      return selected.length > 0;
+    case "eq":
+    case "in":
+      return candidates.some((candidate) => selected.includes(candidate));
+    case "neq":
+    case "nin":
+      return !candidates.some((candidate) => selected.includes(candidate));
+    default:
+      return false;
+  }
+}
 
 export function matchesScalar(
   actual: string | null | undefined,
@@ -46,6 +82,10 @@ export function matchesCustomField(
   value?: string | boolean | number,
   values?: (string | number)[],
 ): boolean {
+  if (Array.isArray(actual)) {
+    return matchesMultiselectCustomField(actual, op, value, values);
+  }
+
   const text = actual == null ? "" : String(actual);
 
   switch (op) {

@@ -7,6 +7,8 @@ import {
   type TicketFilterCondition,
 } from "@server/domain/ticket-filter";
 import { getTicketIdsByUnreadState } from "@server/services/message-reads";
+import { usesMultiselectFilterSemantics } from "@shared/custom-fields";
+import { customFieldCandidateValues } from "@shared/ticket-filter/evaluate";
 
 type FilterContext = {
   userId?: string;
@@ -113,6 +115,43 @@ async function getTicketIdsWithCustomFieldValue(
   return new Set((data ?? []).map((row) => row.entity_id as string));
 }
 
+async function getTicketIdsByMultiselectCustomField(
+  db: SupabaseClient,
+  fieldId: string,
+  op: FilterOperator,
+  value?: string | boolean | number,
+  values?: (string | number)[],
+): Promise<Set<string>> {
+  const candidates = customFieldCandidateValues(op, value, values);
+
+  async function idsContainingAny(options: string[]): Promise<Set<string>> {
+    const matching = new Set<string>();
+    for (const option of options) {
+      const { data, error } = await db
+        .from("custom_field_values")
+        .select("entity_id")
+        .eq("field_id", fieldId)
+        .eq("entity_type", "ticket")
+        .filter("value_json", "cs", JSON.stringify([option]));
+      if (error) throw ApiError.internal(error.message);
+      for (const row of data ?? []) {
+        matching.add(row.entity_id as string);
+      }
+    }
+    return matching;
+  }
+
+  if (op === "eq" || op === "in") {
+    return idsContainingAny(candidates);
+  }
+  if (op === "neq" || op === "nin") {
+    const matching = await idsContainingAny(candidates);
+    return queryTicketIdsExcluding(db, matching);
+  }
+
+  return new Set();
+}
+
 async function getTicketIdsByCustomField(
   db: SupabaseClient,
   key: string,
@@ -129,6 +168,10 @@ async function getTicketIdsByCustomField(
   }
   if (op === "not_empty") {
     return getTicketIdsWithCustomFieldValue(db, key);
+  }
+
+  if (usesMultiselectFilterSemantics(def.type)) {
+    return getTicketIdsByMultiselectCustomField(db, def.id as string, op, value, values);
   }
 
   let query = db

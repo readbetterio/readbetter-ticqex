@@ -69,6 +69,8 @@ function formatCustomFieldValue(type: string, value: unknown): string {
       return formatDate(String(value));
     case "json":
       return typeof value === "string" ? value : JSON.stringify(value);
+    case "multiselect":
+      return Array.isArray(value) ? value.join(", ") : String(value);
     default:
       return String(value);
   }

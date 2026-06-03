@@ -1,4 +1,4 @@
-import type { CustomFieldType } from "./types";
+import { isOptionListType, type CustomFieldType } from "./types";
 
 const KEY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -43,11 +43,37 @@ export function normalizeSelectOptions(values: string[]): {
   return { values: normalized };
 }
 
+export function parseMultiselectValue(value: unknown): string[] {
+  if (value == null) return [];
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : String(entry).trim()))
+    .filter(Boolean);
+}
+
+function coerceMultiselectItems(
+  value: unknown,
+  options: Record<string, unknown> | null | undefined,
+): string[] {
+  const allowed = parseSelectOptions(options);
+  const normalized = normalizeSelectOptions(parseMultiselectValue(value)).values;
+  for (const item of normalized) {
+    if (!allowed.includes(item)) {
+      throw new Error("Value is not an allowed select option");
+    }
+  }
+  return normalized;
+}
+
 export function validateDefinitionOptions(
   type: CustomFieldType,
   options: Record<string, unknown> | null | undefined,
 ): string | null {
-  if (type === "select") {
+  if (isOptionListType(type)) {
     const values = parseSelectOptions(options);
     if (values.length === 0) {
       return "Select fields require at least one option value.";
@@ -129,6 +155,9 @@ export function coerceCustomFieldValue(
   if (value === null || value === undefined || value === "") {
     return { kind: "clear" };
   }
+  if (type === "multiselect" && Array.isArray(value) && value.length === 0) {
+    return { kind: "clear" };
+  }
 
   switch (type) {
     case "number": {
@@ -159,6 +188,13 @@ export function coerceCustomFieldValue(
         throw new Error("Value is not an allowed select option");
       }
       return { kind: "value", value: str };
+    }
+    case "multiselect": {
+      const items = coerceMultiselectItems(value, options);
+      if (items.length === 0) {
+        return { kind: "clear" };
+      }
+      return { kind: "value", value: items };
     }
     case "url": {
       const parsed = parseUrlValue(value);

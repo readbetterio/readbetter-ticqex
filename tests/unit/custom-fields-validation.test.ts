@@ -67,6 +67,25 @@ describe("custom field validation", () => {
     );
   });
 
+  it("coerces multiselect values", () => {
+    const options = { values: ["starter", "pro", "enterprise"] };
+    expect(coerceCustomFieldValue("multiselect", ["pro", "starter"], options)).toEqual({
+      kind: "value",
+      value: ["pro", "starter"],
+    });
+    expect(coerceCustomFieldValue("multiselect", "pro", options)).toEqual({
+      kind: "value",
+      value: ["pro"],
+    });
+    expect(coerceCustomFieldValue("multiselect", [], options)).toEqual({
+      kind: "clear",
+    });
+    expect(() =>
+      coerceCustomFieldValue("multiselect", ["pro", "invalid"], options),
+    ).toThrow(/allowed select/i);
+    expect(validateDefinitionOptions("multiselect", null)).toMatch(/at least one/i);
+  });
+
   it("parses json objects and allows clear", () => {
     expect(coerceCustomFieldValue("json", { tier: "pro" }, null)).toEqual({
       kind: "value",
