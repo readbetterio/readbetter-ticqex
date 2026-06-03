@@ -11,6 +11,7 @@ import {
   operatorNeedsValues,
   type FilterOperator,
 } from "@shared/ticket-filter";
+import { usesOptionListFilterValues } from "@shared/custom-fields";
 import type { CustomFieldDef } from "./filter-types";
 import { MultiCheckboxList } from "./multi-checkbox-list";
 
@@ -31,10 +32,12 @@ export function CustomFieldValuePicker({
   onCustomMultiValuesChange: (values: string[]) => void;
   onToggleCustomMultiValue: (value: string) => void;
 }) {
+  const usesOptionList = usesOptionListFilterValues(customField.type);
+
   if (!operator || operator === "empty" || operator === "not_empty") return null;
 
   if (operatorNeedsValues(operator)) {
-    if (customField.type === "select") {
+    if (usesOptionList) {
       return (
         <MultiCheckboxList
           label="Values"
@@ -83,7 +86,7 @@ export function CustomFieldValuePicker({
     );
   }
 
-  if (customField.type === "select") {
+  if (usesOptionList) {
     return (
       <div className="space-y-2">
         <Label>Value</Label>

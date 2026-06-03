@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CaretDownIcon, CheckIcon } from "@phosphor-icons/react";
+import { OptionCombobox } from "@/components/option-list/option-combobox";
+import { optionMatchesSearch } from "@/components/option-list/types";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -19,12 +21,6 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-function contactMatchesSearch(username: string, search: string) {
-  const query = search.trim().toLowerCase();
-  if (!query) return true;
-  return username.toLowerCase().includes(query);
-}
-
 export type ContactOption = {
   id: string;
   username: string;
@@ -41,63 +37,26 @@ export function ContactFilterCombobox({
   onValueChange: (value: string) => void;
   placeholder?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const selected = contacts.find((contact) => contact.id === value);
+  const options = useMemo(
+    () =>
+      contacts.map((contact) => ({
+        value: contact.id,
+        label: contact.username,
+      })),
+    [contacts],
+  );
 
   return (
     <div className="space-y-2">
       <Label>Contact</Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between font-normal"
-          >
-            <span className="truncate">
-              {selected ? selected.username : placeholder}
-            </span>
-            <CaretDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-0"
-          align="start"
-        >
-          <Command
-            filter={(value, search) =>
-              contactMatchesSearch(value, search) ? 1 : 0
-            }
-          >
-            <CommandInput placeholder="Search contacts…" />
-            <CommandList>
-              <CommandEmpty>No contact found.</CommandEmpty>
-              <CommandGroup>
-                {contacts.map((contact) => (
-                  <CommandItem
-                    key={contact.id}
-                    value={contact.username}
-                    onSelect={() => {
-                      onValueChange(contact.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <CheckIcon
-                      className={cn(
-                        "size-4",
-                        value === contact.id ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {contact.username}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      <OptionCombobox
+        value={value}
+        options={options}
+        onValueChange={onValueChange}
+        placeholder={placeholder}
+        searchPlaceholder="Search contacts…"
+        emptyMessage="No contact found."
+      />
     </div>
   );
 }
@@ -141,8 +100,8 @@ export function ContactFilterMultiCombobox({
           align="start"
         >
           <Command
-            filter={(value, search) =>
-              contactMatchesSearch(value, search) ? 1 : 0
+            filter={(label, search) =>
+              optionMatchesSearch(label, search) ? 1 : 0
             }
           >
             <CommandInput placeholder="Search contacts…" />
