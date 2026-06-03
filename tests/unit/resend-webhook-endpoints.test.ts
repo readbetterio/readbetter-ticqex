@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isHttpsAppUrl,
   normalizeAppUrl,
   resendEventsWebhookEndpoint,
   resendInboundWebhookEndpoint,
@@ -10,6 +11,12 @@ describe("resend webhook endpoints", () => {
     expect(normalizeAppUrl("https://ticqex.example.com/")).toBe(
       "https://ticqex.example.com",
     );
+  });
+
+  it("detects HTTPS app URLs for Resend webhooks", () => {
+    expect(isHttpsAppUrl("http://localhost:3000")).toBe(false);
+    expect(isHttpsAppUrl("https://ticqex.example.com/")).toBe(true);
+    expect(isHttpsAppUrl("not-a-url")).toBe(false);
   });
 
   it("builds inbound and events webhook URLs", () => {

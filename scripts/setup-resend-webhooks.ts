@@ -1,7 +1,9 @@
 import process from "node:process";
 import {
+  isHttpsAppUrl,
   resendEventsWebhookEndpoint,
   resendInboundWebhookEndpoint,
+  RESEND_WEBHOOK_HTTPS_REQUIRED,
 } from "@shared/integrations/resend/webhook-endpoints";
 import { provisionResendWebhooks } from "./lib/resend-webhooks";
 import { readOrCreateEnvFile, setEnvLine, writeEnvFile } from "./lib/env-file";
@@ -27,7 +29,7 @@ Creates (or reuses) Resend inbound and delivery webhooks for this app and writes
 signing secrets to .env.local.
 
 Options:
-  --app-url <url>   Public app URL (default: NEXT_PUBLIC_APP_URL)
+  --app-url <url>   HTTPS public app URL (default: NEXT_PUBLIC_APP_URL)
   --api-key <key>   Resend API key (default: RESEND_API_KEY)
   --dry-run         Print endpoints only; do not call Resend or write .env.local
   --help            Show this help
@@ -48,8 +50,12 @@ async function main(): Promise<void> {
 
   if (!appUrl) {
     throw new Error(
-      "Set NEXT_PUBLIC_APP_URL or pass --app-url (your public tunnel or deployment URL).",
+      "Set NEXT_PUBLIC_APP_URL or pass --app-url (HTTPS tunnel or deployment URL).",
     );
+  }
+
+  if (!isHttpsAppUrl(appUrl)) {
+    throw new Error(RESEND_WEBHOOK_HTTPS_REQUIRED);
   }
 
   if (dryRun) {

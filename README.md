@@ -61,9 +61,9 @@ Use the repo-local CLI to configure Supabase and email (Resend):
 pnpm ticqex init
 ```
 
-**Default:** the email channel and Resend integration stay **on** (`config/ticqex.config.json`). With email enabled, you need a Resend API key (`re_…` from the [Resend dashboard](https://resend.com/api-keys)). Init prompts for that key, your **public app URL** (tunnel or deployment hostname for webhooks), and can **create Resend webhooks via API** — signing secrets are written to `.env.local` automatically. You also set support sender email/name.
+**Default:** the email channel and Resend integration stay **on** (`config/ticqex.config.json`). With email enabled, you need a Resend API key (`re_…` from the [Resend dashboard](https://resend.com/api-keys)). Init defaults `NEXT_PUBLIC_APP_URL` to `http://localhost:3000` for the admin UI. **Inbound email locally requires an HTTPS tunnel** — init explains this and lets you start **ngrok** (`ngrok http 3000`, reused if already running) or paste a tunnel URL (Cloudflare, etc.), then optionally register Resend webhooks via API. You also set support sender email/name.
 
-For local UI-only work without mail, answer **no** when asked to enable the email channel. For real inbound email, use a tunnel URL as `NEXT_PUBLIC_APP_URL` so Resend can reach your app (plain `http://localhost:3000` is fine for the admin UI, not for webhooks).
+For local UI-only work without mail, answer **no** when asked to enable the email channel, or choose **skip** when init asks how to provide a tunnel URL.
 
 Re-run or fix webhooks later:
 

@@ -19,6 +19,11 @@ import {
   writeEnvFile,
 } from "./lib/env-file";
 import { provisionResendWebhooks } from "./lib/resend-webhooks";
+import {
+  promptUseTunnelAsAppUrl,
+  resolveLocalWebhookHttpsUrl,
+} from "./lib/local-tunnel";
+import { isHttpsAppUrl } from "@shared/integrations/resend/webhook-endpoints";
 
 type DbSetupMode = "skip" | "start" | "reset";
 type SupabaseTarget = "local" | "cloud" | "skip";
@@ -76,18 +81,29 @@ function parseSupabaseTarget(args: string[]): SupabaseTarget | null {
   throw new Error("--supabase must be one of: local, cloud, skip");
 }
 
-function runPnpm(args: string[]): void {
-  console.log(`\n> pnpm ${args.join(" ")}`);
-  const result = spawnSync("pnpm", args, {
-    cwd: ROOT,
-    stdio: "inherit",
-  });
+function runPnpm(
+  args: string[],
+  options: { rl?: ReadlineInterface } = {},
+): void {
+  const { rl } = options;
+  // Release stdin while a child runs; otherwise readline blocks Supabase CLI prompts.
+  rl?.pause();
 
-  if (result.error) {
-    throw result.error;
-  }
-  if (result.status !== 0) {
-    throw new Error(`pnpm ${args.join(" ")} failed`);
+  try {
+    console.log(`\n> pnpm ${args.join(" ")}`);
+    const result = spawnSync("pnpm", args, {
+      cwd: ROOT,
+      stdio: "inherit",
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+    if (result.status !== 0) {
+      throw new Error(`pnpm ${args.join(" ")} failed`);
+    }
+  } finally {
+    rl?.resume();
   }
 }
 
@@ -258,13 +274,13 @@ async function setupSupabase(
       false,
     );
     if (!confirmed) return;
-    runPnpm(["db:reset"]);
+    runPnpm(["db:reset"], { rl });
   } else {
-    runPnpm(["db:start"]);
-    runPnpm(["db:bootstrap"]);
+    runPnpm(["db:start"], { rl });
+    runPnpm(["db:bootstrap"], { rl });
   }
 
-  runPnpm(["db:env"]);
+  runPnpm(["db:env"], { rl });
 
   const seedAdmin = await promptYesNo(
     rl,
@@ -272,7 +288,7 @@ async function setupSupabase(
     mode !== "skip",
   );
   if (seedAdmin) {
-    runPnpm(["db:seed-admin"]);
+    runPnpm(["db:seed-admin"], { rl });
   }
 }
 
@@ -287,7 +303,7 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<void> {
     throw new Error("Supabase project ref is required for cloud setup.");
   }
 
-  runPnpm(["supabase", "link", "--project-ref", projectRef]);
+  runPnpm(["supabase", "link", "--project-ref", projectRef, "--yes"], { rl });
 
   const pushMigrations = await promptYesNo(
     rl,
@@ -301,7 +317,8 @@ async function setupCloudSupabase(rl: ReadlineInterface): Promise<void> {
       false,
     );
     if (confirmed) {
-      runPnpm(["supabase", "db", "push", "--linked"]);
+      // Init already confirmed; --yes avoids a second prompt that stdin cannot answer.
+      runPnpm(["supabase", "db", "push", "--linked", "--yes"], { rl });
     }
   }
 
@@ -356,8 +373,7 @@ async function configureChannelsAndIntegrations(
       },
       {
         key: "NEXT_PUBLIC_APP_URL",
-        label:
-          "Public app URL (tunnel or deployment hostname for Resend webhooks)",
+        label: "App URL (local admin UI and links)",
         required: true,
         defaultValue: "http://localhost:3000",
       },
@@ -369,25 +385,45 @@ async function configureChannelsAndIntegrations(
     }
 
     const resendApiKey = getEnvValue(envContent, "RESEND_API_KEY");
-    const appUrl = getEnvValue(envContent, "NEXT_PUBLIC_APP_URL");
+    let appUrl = getEnvValue(envContent, "NEXT_PUBLIC_APP_URL");
+    let webhookAppUrl = appUrl && isHttpsAppUrl(appUrl) ? appUrl : null;
+
+    if (appUrl && !webhookAppUrl) {
+      const tunnelUrl = await resolveLocalWebhookHttpsUrl({
+        rl,
+        localAppUrl: appUrl,
+      });
+      if (tunnelUrl) {
+        webhookAppUrl = tunnelUrl;
+        if (await promptUseTunnelAsAppUrl(rl, webhookAppUrl)) {
+          envContent = setEnvLine(
+            envContent,
+            "NEXT_PUBLIC_APP_URL",
+            webhookAppUrl,
+          );
+          appUrl = webhookAppUrl;
+        }
+      }
+    }
+
     const hasInboundSecret = Boolean(
       getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET"),
     );
 
     const provisionWebhooks =
       resendApiKey &&
-      appUrl &&
+      webhookAppUrl &&
       (await promptYesNo(
         rl,
         "Create Resend webhooks via API (saves signing secrets to .env.local)?",
         !hasInboundSecret,
       ));
 
-    if (provisionWebhooks) {
+    if (provisionWebhooks && webhookAppUrl) {
       try {
         const result = await provisionResendWebhooks({
           apiKey: resendApiKey,
-          appUrl,
+          appUrl: webhookAppUrl,
         });
         envContent = setEnvLine(
           envContent,
@@ -410,9 +446,13 @@ async function configureChannelsAndIntegrations(
         const message = error instanceof Error ? error.message : String(error);
         console.error(`\nCould not provision Resend webhooks: ${message}`);
         console.log(
-          "Add signing secrets manually from the Resend dashboard, or run `pnpm resend:setup-webhooks` later.",
+          "Add signing secrets manually from the Resend dashboard, or run `pnpm resend:setup-webhooks --app-url https://your-host` later.",
         );
       }
+    } else if (resendApiKey && !webhookAppUrl && !hasInboundSecret) {
+      console.log(
+        "\nSkipped Resend webhook API setup (no HTTPS tunnel). Paste signing secrets from the dashboard, or run `pnpm resend:setup-webhooks --app-url https://your-tunnel` after starting ngrok or another tunnel.",
+      );
     }
 
     if (!getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET")) {
@@ -422,7 +462,7 @@ async function configureChannelsAndIntegrations(
         "RESEND_INBOUND_WEBHOOK_SECRET",
         {
           label: "Resend inbound webhook signing secret",
-          required: true,
+          required: !webhookAppUrl,
         },
       );
       if (inboundSecret) {
@@ -493,7 +533,7 @@ async function init(args: string[]): Promise<void> {
     rl.close();
   }
 
-  runPnpm(["config:sync"]);
+  runPnpm(["config:sync"], { rl });
   console.log(
     "\nInit complete. Run `pnpm config:check` and `pnpm env:verify` to validate setup.",
   );

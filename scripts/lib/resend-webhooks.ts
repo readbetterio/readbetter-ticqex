@@ -1,7 +1,9 @@
 import { Resend } from "resend";
 import {
+  isHttpsAppUrl,
   RESEND_DELIVERY_WEBHOOK_EVENTS,
   RESEND_INBOUND_WEBHOOK_EVENTS,
+  RESEND_WEBHOOK_HTTPS_REQUIRED,
   resendEventsWebhookEndpoint,
   resendInboundWebhookEndpoint,
 } from "@shared/integrations/resend/webhook-endpoints";
@@ -103,6 +105,9 @@ export async function provisionResendWebhooks(
   }
   if (!appUrl) {
     throw new Error("Public app URL is required to provision webhooks.");
+  }
+  if (!isHttpsAppUrl(appUrl)) {
+    throw new Error(RESEND_WEBHOOK_HTTPS_REQUIRED);
   }
 
   const resend = new Resend(apiKey);
