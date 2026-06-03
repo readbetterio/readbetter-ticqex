@@ -99,12 +99,19 @@ export async function loadStagedAttachmentsForMessages(messageIds: string[]) {
   return map;
 }
 
-export async function stageAttachmentUpload(
-  ticketId: string,
-  file: File,
-  uploadedBy: string,
+export type StageAttachmentBytesInput = {
+  ticketId: string;
+  filename: string;
+  contentType: string;
+  content: Buffer;
+  uploadedBy: string;
+};
+
+export async function stageAttachmentUploadFromBytes(
+  input: StageAttachmentBytesInput,
 ): Promise<StagedUpload> {
-  if (file.size > MAX_ATTACHMENT_BYTES) {
+  const sizeBytes = input.content.length;
+  if (sizeBytes > MAX_ATTACHMENT_BYTES) {
     throw ApiError.badRequest(attachmentExceedsLimitError());
   }
 
@@ -112,7 +119,7 @@ export async function stageAttachmentUpload(
   const { data: ticket } = await db
     .from("tickets")
     .select("id, kind")
-    .eq("id", ticketId)
+    .eq("id", input.ticketId)
     .maybeSingle();
   if (!ticket) throw ApiError.notFound("Ticket not found");
   if (!isConversationTicket(ticket as TicketRow)) {
@@ -120,14 +127,14 @@ export async function stageAttachmentUpload(
   }
 
   const uploadId = crypto.randomUUID();
-  const filename = file.name || "attachment";
-  const storagePath = pendingPath(ticketId, uploadId, filename);
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const filename = input.filename.trim() || "attachment";
+  const contentType = input.contentType.trim() || "application/octet-stream";
+  const storagePath = pendingPath(input.ticketId, uploadId, filename);
 
   const { error: uploadError } = await db.storage
     .from(ATTACHMENTS_BUCKET)
-    .upload(storagePath, buffer, {
-      contentType: file.type || "application/octet-stream",
+    .upload(storagePath, input.content, {
+      contentType,
       upsert: false,
     });
   if (uploadError) throw ApiError.internal(uploadError.message);
@@ -136,18 +143,33 @@ export async function stageAttachmentUpload(
     .from("message_attachment_uploads")
     .insert({
       id: uploadId,
-      ticket_id: ticketId,
+      ticket_id: input.ticketId,
       filename,
-      content_type: file.type || "application/octet-stream",
-      size_bytes: file.size,
+      content_type: contentType,
+      size_bytes: sizeBytes,
       storage_path: storagePath,
-      uploaded_by: uploadedBy,
+      uploaded_by: input.uploadedBy,
     })
     .select("id, filename, content_type, size_bytes, storage_path")
     .single();
   if (error) throw ApiError.internal(error.message);
 
   return data;
+}
+
+export async function stageAttachmentUpload(
+  ticketId: string,
+  file: File,
+  uploadedBy: string,
+): Promise<StagedUpload> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  return stageAttachmentUploadFromBytes({
+    ticketId,
+    filename: file.name || "attachment",
+    contentType: file.type || "application/octet-stream",
+    content: buffer,
+    uploadedBy,
+  });
 }
 
 /** Link staged uploads to the outbound message (no storage move). */

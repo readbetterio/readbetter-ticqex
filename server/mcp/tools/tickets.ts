@@ -12,7 +12,10 @@ import {
   toggleMessageReadSchema,
   updateTicketSchema,
 } from "@server/lib/validation/schemas";
-import { getAttachmentSignedUrl } from "@server/services/attachment-uploads";
+import {
+  getAttachmentSignedUrl,
+  stageAttachmentUploadFromBytes,
+} from "@server/services/attachment-uploads";
 import {
   createAgentDraft,
   createAgentReply,
@@ -327,5 +330,47 @@ export function registerTicketTools(server: McpServer) {
           forceDownload: force_download,
         }),
       }),
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_stage_ticket_attachment_upload",
+    {
+      title: "Stage Ticket Attachment Upload",
+      description:
+        "Stage a file for an outbound email on a conversation ticket. Pass returned id in message email.attachment_upload_ids.",
+      inputSchema: {
+        ticket_id: uuid,
+        filename: z.string().min(1),
+        content_base64: z.string().min(1),
+        content_type: z.string().optional(),
+      },
+    },
+    async ({ ticket_id, filename, content_base64, content_type }, auth) => {
+      let content: Buffer;
+      try {
+        content = Buffer.from(content_base64, "base64");
+      } catch {
+        throw ApiError.badRequest("content_base64 must be valid base64");
+      }
+      if (!content.length) {
+        throw ApiError.badRequest("Attachment content is empty");
+      }
+
+      const upload = await stageAttachmentUploadFromBytes({
+        ticketId: ticket_id,
+        filename,
+        contentType: content_type?.trim() || "application/octet-stream",
+        content,
+        uploadedBy: auth.userId,
+      });
+
+      return toolResult({
+        id: upload.id,
+        filename: upload.filename,
+        content_type: upload.content_type,
+        size_bytes: upload.size_bytes,
+      });
+    },
   );
 }

@@ -4,12 +4,14 @@ import { createAdminClient } from "@server/lib/supabase-admin";
 import {
   createCustomFieldSchema,
   parseBody,
+  reorderCustomFieldsSchema,
   updateCustomFieldSchema,
 } from "@server/lib/validation/schemas";
 import {
   createDefinition,
   deleteDefinition,
   listDefinitions,
+  reorderDefinitions,
   updateDefinition,
 } from "@server/services/custom-fields";
 import { registerAuthedTool, toolResult, uuid } from "../core";
@@ -70,6 +72,23 @@ export function registerCustomFieldTools(server: McpServer) {
     async ({ id }) => {
       await deleteDefinition(createAdminClient(), id);
       return toolResult({ deleted: true });
+    },
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_reorder_custom_fields",
+    {
+      title: "Reorder Custom Fields",
+      description: "Reorder custom field definitions within a ticket or contact group. Admin only.",
+      inputSchema: reorderCustomFieldsSchema.shape,
+      admin: true,
+    },
+    async (input) => {
+      const body = parseBody(reorderCustomFieldsSchema, input);
+      return toolResult(
+        await reorderDefinitions(createAdminClient(), body.group, body.ids),
+      );
     },
   );
 }
