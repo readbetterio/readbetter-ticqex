@@ -25,7 +25,7 @@ describe("validateTicqexConfig", () => {
   it("binds email to resend when env is complete", () => {
     const result = validateTicqexConfig(enabledEmailConfig, {
       RESEND_API_KEY: "re_test",
-      RESEND_INBOUND_WEBHOOK_SECRET: "whsec_test",
+      RESEND_WEBHOOK_SECRET: "whsec_test",
       SUPPORT_EMAIL: "support@example.com",
       SUPPORT_FROM_NAME: "Support",
       NEXT_PUBLIC_APP_URL: "https://example.com",
@@ -38,7 +38,7 @@ describe("validateTicqexConfig", () => {
   it("requires NEXT_PUBLIC_APP_URL when email is enabled", () => {
     const result = validateTicqexConfig(enabledEmailConfig, {
       RESEND_API_KEY: "re_test",
-      RESEND_INBOUND_WEBHOOK_SECRET: "whsec_test",
+      RESEND_WEBHOOK_SECRET: "whsec_test",
       SUPPORT_EMAIL: "support@example.com",
       SUPPORT_FROM_NAME: "Support",
     });
@@ -64,7 +64,7 @@ describe("getEmailChannelRuntime", () => {
       config: enabledEmailConfig,
       env: {
         RESEND_API_KEY: "re_test",
-        RESEND_INBOUND_WEBHOOK_SECRET: "whsec_test",
+        RESEND_WEBHOOK_SECRET: "whsec_test",
         SUPPORT_EMAIL: "support@example.com",
         SUPPORT_FROM_NAME: "Support",
         NEXT_PUBLIC_APP_URL: "https://example.com",
@@ -81,7 +81,7 @@ describe("getEmailChannelRuntime", () => {
 describe("isChannelOperational", () => {
   const env = {
     RESEND_API_KEY: "re_test",
-    RESEND_INBOUND_WEBHOOK_SECRET: "whsec_test",
+    RESEND_WEBHOOK_SECRET: "whsec_test",
     SUPPORT_EMAIL: "support@example.com",
     SUPPORT_FROM_NAME: "Support",
     NEXT_PUBLIC_APP_URL: "https://example.com",

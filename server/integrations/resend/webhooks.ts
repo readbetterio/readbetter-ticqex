@@ -9,29 +9,15 @@ import {
 } from "@shared/integrations/resend/webhook-types";
 import type { IntegrationWebhookResult } from "@server/integrations/types";
 
-function inboundWebhookSecret(): string | undefined {
-  return process.env.RESEND_INBOUND_WEBHOOK_SECRET;
+function resendWebhookSecret(): string | undefined {
+  return process.env.RESEND_WEBHOOK_SECRET;
 }
 
-function eventsWebhookSecret(): string | undefined {
-  return (
-    process.env.RESEND_EVENTS_WEBHOOK_SECRET ??
-    process.env.RESEND_INBOUND_WEBHOOK_SECRET
-  );
-}
-
-export function verifyResendInboundWebhook(
+export function verifyResendWebhook(
   payload: string,
   headers: Headers,
 ): boolean {
-  return verifySvixWebhook(payload, headers, inboundWebhookSecret());
-}
-
-export function verifyResendEventsWebhook(
-  payload: string,
-  headers: Headers,
-): boolean {
-  return verifySvixWebhook(payload, headers, eventsWebhookSecret());
+  return verifySvixWebhook(payload, headers, resendWebhookSecret());
 }
 
 function unauthorized(): IntegrationWebhookResult {
@@ -50,17 +36,9 @@ function invalidJson(): IntegrationWebhookResult {
   };
 }
 
-export async function handleResendInboundWebhook(
-  rawBody: string,
-  headers: Headers,
+async function handleInboundPayload(
+  payload: NonNullable<ReturnType<typeof parseResendInboundWebhookPayload>>,
 ): Promise<IntegrationWebhookResult> {
-  if (!verifyResendInboundWebhook(rawBody, headers)) {
-    return unauthorized();
-  }
-
-  const payload = parseResendInboundWebhookPayload(rawBody);
-  if (!payload) return invalidJson();
-
   const {
     channelUnavailableWebhookResult,
     getOperationalEmailChannel,
@@ -78,16 +56,9 @@ export async function handleResendInboundWebhook(
   return { status: 200, body: { accepted: true } };
 }
 
-export async function handleResendEventsWebhook(
-  rawBody: string,
-  headers: Headers,
+async function handleDeliveryPayload(
+  payload: NonNullable<ReturnType<typeof parseResendDeliveryWebhookPayload>>,
 ): Promise<IntegrationWebhookResult> {
-  if (!verifyResendEventsWebhook(rawBody, headers)) {
-    return unauthorized();
-  }
-
-  const payload = parseResendDeliveryWebhookPayload(rawBody);
-  if (!payload) return invalidJson();
   const event = normalizeResendDeliveryEvent(payload);
   if (!event) {
     return {
@@ -108,4 +79,25 @@ export async function handleResendEventsWebhook(
 
   const result = await channel.deliveryEvents.handle({ payload: event });
   return { status: 200, body: { accepted: true, ...result } };
+}
+
+export async function handleResendWebhook(
+  rawBody: string,
+  headers: Headers,
+): Promise<IntegrationWebhookResult> {
+  if (!verifyResendWebhook(rawBody, headers)) {
+    return unauthorized();
+  }
+
+  const inboundPayload = parseResendInboundWebhookPayload(rawBody);
+  if (inboundPayload) {
+    return handleInboundPayload(inboundPayload);
+  }
+
+  const deliveryPayload = parseResendDeliveryWebhookPayload(rawBody);
+  if (deliveryPayload) {
+    return handleDeliveryPayload(deliveryPayload);
+  }
+
+  return invalidJson();
 }

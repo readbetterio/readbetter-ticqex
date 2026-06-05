@@ -14,7 +14,7 @@ contribution process lives in [CONTRIBUTING.md](./CONTRIBUTING.md).
 2. `pnpm ticqex init`
    - Supabase: choose `local` then `start` or `reset`.
    - For UI/API/MCP only, disable the email channel.
-   - For email, provide `RESEND_API_KEY`, support sender env vars, and webhook secrets.
+   - For email, provide `RESEND_API_KEY`, support sender env vars, and the webhook secret.
 3. If inbound email is needed locally, `NEXT_PUBLIC_APP_URL` must be a public HTTPS tunnel URL, not `http://localhost:3000`. Use `ngrok http 3000` or another HTTPS tunnel, then register webhooks with `pnpm resend:setup-webhooks --app-url <https-url>`.
 4. Run `pnpm config:check`, `pnpm env:verify`, and `pnpm dev`.
 5. Verify `http://localhost:3000/api/health`, then sign in with the seed admin credentials.
@@ -45,12 +45,11 @@ Only do this when the user explicitly asks for cloud setup. Remote migrations af
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`.
 4. Create/import the Vercel project and set Production + Preview env vars:
    Supabase vars, `NEXT_PUBLIC_APP_URL`, and, if email is enabled, `RESEND_API_KEY`,
-   `RESEND_INBOUND_WEBHOOK_SECRET`, `RESEND_EVENTS_WEBHOOK_SECRET`,
-   `SUPPORT_EMAIL`, `SUPPORT_FROM_NAME`.
+   `RESEND_WEBHOOK_SECRET`, `SUPPORT_EMAIL`, `SUPPORT_FROM_NAME`.
 5. Deploy once with `vercel deploy --prod`.
 6. If email is enabled, create a Resend API key, verify the sender/domain, run
    `RESEND_API_KEY=re_... pnpm resend:setup-webhooks --app-url https://<vercel-host>`,
-   then copy the generated webhook secrets into Vercel and redeploy.
+   then copy the generated webhook secret into Vercel and redeploy.
 7. Seed the first admin against cloud with `NEXT_PUBLIC_SUPABASE_URL`,
    `SUPABASE_SECRET_KEY`, `SEED_ADMIN_EMAIL`, and `SEED_ADMIN_PASSWORD` in the shell:
    `pnpm db:seed-admin`.

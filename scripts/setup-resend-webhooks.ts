@@ -1,8 +1,7 @@
 import process from "node:process";
 import {
   isHttpsAppUrl,
-  resendEventsWebhookEndpoint,
-  resendInboundWebhookEndpoint,
+  resendWebhookUrl,
   RESEND_WEBHOOK_HTTPS_REQUIRED,
 } from "@shared/integrations/resend/webhook-endpoints";
 import { provisionResendWebhooks } from "./lib/resend-webhooks";
@@ -25,8 +24,8 @@ function optionValue(args: string[], name: string): string | null {
 function printUsage(): void {
   console.log(`Usage: pnpm resend:setup-webhooks [options]
 
-Creates (or reuses) Resend inbound and delivery webhooks for this app and writes
-signing secrets to .env.local.
+Creates (or reuses) the Resend webhook for this app and writes the signing
+secret to .env.local.
 
 Options:
   --app-url <url>   HTTPS public app URL (default: NEXT_PUBLIC_APP_URL)
@@ -59,9 +58,8 @@ async function main(): Promise<void> {
   }
 
   if (dryRun) {
-    console.log("Webhook endpoints:");
-    console.log(`  inbound: ${resendInboundWebhookEndpoint(appUrl)}`);
-    console.log(`  events:  ${resendEventsWebhookEndpoint(appUrl)}`);
+    console.log("Webhook endpoint:");
+    console.log(`  ${resendWebhookUrl(appUrl)}`);
     return;
   }
 
@@ -80,23 +78,13 @@ async function main(): Promise<void> {
   envContent = setEnvLine(envContent, "NEXT_PUBLIC_APP_URL", appUrl);
   envContent = setEnvLine(
     envContent,
-    "RESEND_INBOUND_WEBHOOK_SECRET",
-    result.inboundSigningSecret,
-  );
-  envContent = setEnvLine(
-    envContent,
-    "RESEND_EVENTS_WEBHOOK_SECRET",
-    result.eventsSigningSecret,
+    "RESEND_WEBHOOK_SECRET",
+    result.signingSecret,
   );
   writeEnvFile(ENV_FILE, envContent);
 
-  console.log("Resend webhooks ready:");
-  console.log(
-    `  inbound (${result.inboundCreated ? "created" : "reused"}): ${result.inboundEndpoint}`,
-  );
-  console.log(
-    `  events (${result.eventsCreated ? "created" : "reused"}): ${result.eventsEndpoint}`,
-  );
+  console.log("Resend webhook ready:");
+  console.log(`  ${result.created ? "created" : "reused"}: ${result.endpoint}`);
   console.log(`\nUpdated ${path.relative(ROOT, ENV_FILE)}`);
 }
 

@@ -4,10 +4,7 @@ import type {
   IntegrationRuntime,
 } from "@server/integrations/types";
 import { resendIntegration } from "@server/integrations/resend/integration";
-import {
-  handleResendEventsWebhook,
-  handleResendInboundWebhook,
-} from "@server/integrations/resend/webhooks";
+import { handleResendWebhook } from "@server/integrations/resend/webhooks";
 import { createRegistry } from "@shared/registry";
 
 export type {
@@ -21,8 +18,7 @@ export type { ResendIntegrationConfig } from "@server/integrations/resend/integr
 const resendWithWebhooks: IntegrationDefinition = {
   ...resendIntegration,
   webhooks: {
-    inbound: handleResendInboundWebhook,
-    events: handleResendEventsWebhook,
+    webhook: handleResendWebhook,
   },
 };
 

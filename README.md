@@ -103,8 +103,7 @@ Prefer doing setup by hand? See [Manual setup](#manual-setup-without-pnpm-ticqex
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | `.env.example` defaults                               | `pnpm db:seed-admin`                                             |
 | `NEXT_PUBLIC_APP_URL`                      | `pnpm ticqex init`                                    | Public hostname Resend calls for webhooks (tunnel or deploy URL) |
 | `RESEND_API_KEY`                           | [Resend API keys](https://resend.com/api-keys) / init | **Required** when email is enabled                               |
-| `RESEND_INBOUND_WEBHOOK_SECRET`            | init / `resend:setup-webhooks`                        | Svix secret for inbound (`email.received`)                       |
-| `RESEND_EVENTS_WEBHOOK_SECRET`             | init / `resend:setup-webhooks`                        | Svix secret for delivery events                                  |
+| `RESEND_WEBHOOK_SECRET`                    | init / `resend:setup-webhooks`                        | Svix secret for Resend webhook events                            |
 | `SUPPORT_EMAIL` / `SUPPORT_FROM_NAME`      | init                                                  | Outbound From address and display name                           |
 
 
@@ -127,10 +126,9 @@ These paths mirror what the interactive CLI does, but you run each step yourself
 | `**NEXT_PUBLIC_APP_URL**` | Public HTTPS URL Resend calls for webhooks. Local UI can use `http://localhost:3000`; **inbound email requires HTTPS** (tunnel or deploy URL). |
 
 
-Webhook paths when email is enabled:
+Webhook path when email is enabled:
 
-- Inbound: `{NEXT_PUBLIC_APP_URL}/api/webhooks/integrations/resend/inbound`
-- Events: `{NEXT_PUBLIC_APP_URL}/api/webhooks/integrations/resend/events`
+- Resend: `{NEXT_PUBLIC_APP_URL}/api/webhooks/integrations/resend`
 
 ---
 
@@ -199,7 +197,7 @@ Do everything in **Kanban, API, and MCP** above, but keep email enabled in `conf
   ```bash
    pnpm resend:setup-webhooks --app-url https://your-tunnel-host.example
   ```
-   Or create webhooks manually in the [Resend dashboard](https://resend.com/webhooks) pointing at the inbound/events paths above, then paste `RESEND_INBOUND_WEBHOOK_SECRET` and `RESEND_EVENTS_WEBHOOK_SECRET` into `.env.local`.
+   Or create one webhook manually in the [Resend dashboard](https://resend.com/webhooks) pointing at the Resend path above, subscribe it to inbound and delivery events, then paste `RESEND_WEBHOOK_SECRET` into `.env.local`.
 5. **Start the app and keep the tunnel running:**
   ```bash
    pnpm config:check
@@ -271,8 +269,7 @@ Set these environment variables in **Vercel -> Project -> Settings -> Environmen
 | `SUPABASE_SECRET_KEY`                  | Supabase full secret / `service_role` key                                 |
 | `NEXT_PUBLIC_APP_URL`                  | Production URL, e.g. `https://<project>.vercel.app` or your custom domain |
 | `RESEND_API_KEY`                       | Resend API key, only if email is enabled                                  |
-| `RESEND_INBOUND_WEBHOOK_SECRET`        | Add after webhook setup, only if email is enabled                         |
-| `RESEND_EVENTS_WEBHOOK_SECRET`         | Add after webhook setup, only if email is enabled                         |
+| `RESEND_WEBHOOK_SECRET`                | Add after webhook setup, only if email is enabled                         |
 | `SUPPORT_EMAIL`                        | Resend-approved sender address, only if email is enabled                  |
 | `SUPPORT_FROM_NAME`                    | Sender display name, only if email is enabled                             |
 
@@ -295,15 +292,13 @@ Skip this section if email is disabled in `config/ticqex.config.json`.
   ```bash
    RESEND_API_KEY=re_... pnpm resend:setup-webhooks --app-url https://<your-vercel-host>
   ```
-4. Copy these generated values from `.env.local` into Vercel env vars for Production and Preview:
+4. Copy this generated value from `.env.local` into Vercel env vars for Production and Preview:
 
-- `RESEND_INBOUND_WEBHOOK_SECRET`
-- `RESEND_EVENTS_WEBHOOK_SECRET`
+- `RESEND_WEBHOOK_SECRET`
 
-1. Confirm the Resend webhook endpoints are:
+1. Confirm the Resend webhook endpoint is:
 
-- `https://<your-vercel-host>/api/webhooks/integrations/resend/inbound`
-- `https://<your-vercel-host>/api/webhooks/integrations/resend/events`
+- `https://<your-vercel-host>/api/webhooks/integrations/resend`
 
 Redeploy after adding or changing Vercel env vars:
 

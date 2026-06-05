@@ -44,7 +44,10 @@ export function isResendInboundWebhookPayload(
 ): value is ResendInboundWebhookPayload {
   if (!value || typeof value !== "object") return false;
   const envelope = value as ResendInboundWebhookPayload;
-  return typeof envelope.data?.email_id === "string";
+  return (
+    envelope.type === "email.received" &&
+    typeof envelope.data?.email_id === "string"
+  );
 }
 
 export function isResendDeliveryWebhookPayload(

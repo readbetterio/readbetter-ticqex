@@ -1,11 +1,9 @@
 import { Resend } from "resend";
 import {
   isHttpsAppUrl,
-  RESEND_DELIVERY_WEBHOOK_EVENTS,
-  RESEND_INBOUND_WEBHOOK_EVENTS,
+  RESEND_WEBHOOK_EVENTS,
   RESEND_WEBHOOK_HTTPS_REQUIRED,
-  resendEventsWebhookEndpoint,
-  resendInboundWebhookEndpoint,
+  resendWebhookUrl,
 } from "@shared/integrations/resend/webhook-endpoints";
 
 export type ProvisionResendWebhooksInput = {
@@ -14,12 +12,9 @@ export type ProvisionResendWebhooksInput = {
 };
 
 export type ProvisionResendWebhooksResult = {
-  inboundEndpoint: string;
-  eventsEndpoint: string;
-  inboundSigningSecret: string;
-  eventsSigningSecret: string;
-  inboundCreated: boolean;
-  eventsCreated: boolean;
+  endpoint: string;
+  signingSecret: string;
+  created: boolean;
 };
 
 function formatResendError(error: { message: string; name?: string }): string {
@@ -111,26 +106,12 @@ export async function provisionResendWebhooks(
   }
 
   const resend = new Resend(apiKey);
-  const inboundEndpoint = resendInboundWebhookEndpoint(appUrl);
-  const eventsEndpoint = resendEventsWebhookEndpoint(appUrl);
-
-  const inbound = await ensureWebhook(
-    resend,
-    inboundEndpoint,
-    RESEND_INBOUND_WEBHOOK_EVENTS,
-  );
-  const events = await ensureWebhook(
-    resend,
-    eventsEndpoint,
-    RESEND_DELIVERY_WEBHOOK_EVENTS,
-  );
+  const endpoint = resendWebhookUrl(appUrl);
+  const webhook = await ensureWebhook(resend, endpoint, RESEND_WEBHOOK_EVENTS);
 
   return {
-    inboundEndpoint,
-    eventsEndpoint,
-    inboundSigningSecret: inbound.signingSecret,
-    eventsSigningSecret: events.signingSecret,
-    inboundCreated: inbound.created,
-    eventsCreated: events.created,
+    endpoint,
+    signingSecret: webhook.signingSecret,
+    created: webhook.created,
   };
 }

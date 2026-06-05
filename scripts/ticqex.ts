@@ -345,15 +345,15 @@ async function configureChannelsAndIntegrations(
       }
     }
 
-    const hasInboundSecret = Boolean(
-      getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET"),
+    const hasWebhookSecret = Boolean(
+      getEnvValue(envContent, "RESEND_WEBHOOK_SECRET"),
     );
     const provisionWebhooks =
       resendApiKey &&
       webhookAppUrl &&
       (await promptYesNo(
         rl,
-        "Create Resend webhooks via API (saves signing secrets to .env.local)?",
+        "Create Resend webhook via API (saves signing secret to .env.local)?",
         true,
       ));
 
@@ -365,68 +365,41 @@ async function configureChannelsAndIntegrations(
         });
         envContent = setEnvLine(
           envContent,
-          "RESEND_INBOUND_WEBHOOK_SECRET",
-          result.inboundSigningSecret,
+          "RESEND_WEBHOOK_SECRET",
+          result.signingSecret,
         );
-        envContent = setEnvLine(
-          envContent,
-          "RESEND_EVENTS_WEBHOOK_SECRET",
-          result.eventsSigningSecret,
-        );
-        console.log("\nResend webhooks:");
+        console.log("\nResend webhook:");
         console.log(
-          `  inbound (${result.inboundCreated ? "created" : "reused"}): ${result.inboundEndpoint}`,
-        );
-        console.log(
-          `  events (${result.eventsCreated ? "created" : "reused"}): ${result.eventsEndpoint}`,
+          `  ${result.created ? "created" : "reused"}: ${result.endpoint}`,
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`\nCould not provision Resend webhooks: ${message}`);
+        console.error(`\nCould not provision Resend webhook: ${message}`);
         console.log(
-          "Add signing secrets manually from the Resend dashboard, or run `pnpm resend:setup-webhooks --app-url https://your-host` later.",
+          "Add the signing secret manually from the Resend dashboard, or run `pnpm resend:setup-webhooks --app-url https://your-host` later.",
         );
       }
-    } else if (resendApiKey && !webhookAppUrl && !hasInboundSecret) {
+    } else if (resendApiKey && !webhookAppUrl && !hasWebhookSecret) {
       console.log(
         "\nSkipped Resend webhook API setup because no HTTPS tunnel URL was provided. Inbound email will not work until NEXT_PUBLIC_APP_URL is HTTPS and Resend webhooks are configured.",
       );
     }
 
-    if (!getEnvValue(envContent, "RESEND_INBOUND_WEBHOOK_SECRET")) {
-      const inboundSecret = await promptEnvValue(
+    if (!getEnvValue(envContent, "RESEND_WEBHOOK_SECRET")) {
+      const webhookSecret = await promptEnvValue(
         rl,
         envContent,
-        "RESEND_INBOUND_WEBHOOK_SECRET",
+        "RESEND_WEBHOOK_SECRET",
         {
-          label: "Resend inbound webhook signing secret",
+          label: "Resend webhook signing secret",
           required: !webhookAppUrl,
         },
       );
-      if (inboundSecret) {
+      if (webhookSecret) {
         envContent = setEnvLine(
           envContent,
-          "RESEND_INBOUND_WEBHOOK_SECRET",
-          inboundSecret,
-        );
-      }
-    }
-
-    if (!getEnvValue(envContent, "RESEND_EVENTS_WEBHOOK_SECRET")) {
-      const eventsSecret = await promptEnvValue(
-        rl,
-        envContent,
-        "RESEND_EVENTS_WEBHOOK_SECRET",
-        {
-          label: "Resend events webhook signing secret",
-          required: false,
-        },
-      );
-      if (eventsSecret) {
-        envContent = setEnvLine(
-          envContent,
-          "RESEND_EVENTS_WEBHOOK_SECRET",
-          eventsSecret,
+          "RESEND_WEBHOOK_SECRET",
+          webhookSecret,
         );
       }
     }

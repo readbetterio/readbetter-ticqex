@@ -13,12 +13,12 @@ export type ResendIntegrationConfig = IntegrationBindingConfig;
 
 const REQUIRED_ENV = [
   "RESEND_API_KEY",
-  "RESEND_INBOUND_WEBHOOK_SECRET",
+  "RESEND_WEBHOOK_SECRET",
   "SUPPORT_EMAIL",
   "SUPPORT_FROM_NAME",
 ] as const;
 
-const OPTIONAL_ENV = ["RESEND_EVENTS_WEBHOOK_SECRET"] as const;
+const OPTIONAL_ENV = [] as const;
 
 function missingRequiredEnv(
   env: NodeJS.ProcessEnv,

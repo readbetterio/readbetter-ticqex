@@ -127,7 +127,7 @@ describe("field policy helpers", () => {
 describe("channel integration email", () => {
   const env = {
     RESEND_API_KEY: "re_test",
-    RESEND_INBOUND_WEBHOOK_SECRET: "whsec_test",
+    RESEND_WEBHOOK_SECRET: "whsec_test",
     SUPPORT_EMAIL: "support@example.com",
     SUPPORT_FROM_NAME: "Support",
     NEXT_PUBLIC_APP_URL: "https://example.com",
