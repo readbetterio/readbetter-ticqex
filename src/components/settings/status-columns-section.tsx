@@ -207,22 +207,16 @@ function SortableStatusRow({
 function DeleteStatusDialog({
   status,
   otherStatuses,
-  step,
   reassignTo,
-  deleting,
   onReassignChange,
   onCancel,
-  onContinue,
   onConfirm,
 }: {
   status: StatusColumn;
   otherStatuses: StatusColumn[];
-  step: 1 | 2;
   reassignTo: string;
-  deleting: boolean;
   onReassignChange: (id: string) => void;
   onCancel: () => void;
-  onContinue: () => void;
   onConfirm: () => void;
 }) {
   const hasTickets = status.ticket_count > 0;
@@ -230,68 +224,47 @@ function DeleteStatusDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="sm:max-w-md">
-        {step === 1 ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Delete &ldquo;{status.name}&rdquo;?</DialogTitle>
-              <DialogDescription>
-                This removes the status type from your workspace.
-                {hasTickets
-                  ? ` ${status.ticket_count} ticket(s) currently use this status.`
-                  : " No tickets use this status."}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button type="button" variant="destructive" onClick={onContinue}>
-                Continue
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Permanently delete &ldquo;{status.name}&rdquo;?</DialogTitle>
-              <DialogDescription>
-                This action cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            {hasTickets && (
-              <div className="space-y-2">
-                <Label htmlFor="reassign-status">
-                  Reassign {status.ticket_count} ticket(s) to
-                </Label>
-                <Select value={reassignTo} onValueChange={onReassignChange}>
-                  <SelectTrigger id="reassign-status" className="w-full">
-                    <SelectValue placeholder="Choose a status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {otherStatuses.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={deleting || (hasTickets && !reassignTo)}
-                onClick={onConfirm}
-              >
-                {deleting ? "Deleting…" : "Delete permanently"}
-              </Button>
-            </DialogFooter>
-          </>
+        <DialogHeader>
+          <DialogTitle>Delete &ldquo;{status.name}&rdquo;?</DialogTitle>
+          <DialogDescription>
+            This removes the status type from your workspace.
+            {hasTickets
+              ? ` ${status.ticket_count} ticket(s) currently use this status.`
+              : " No tickets use this status."}
+          </DialogDescription>
+        </DialogHeader>
+        {hasTickets && (
+          <div className="space-y-2">
+            <Label htmlFor="reassign-status">
+              Reassign {status.ticket_count} ticket(s) to
+            </Label>
+            <Select value={reassignTo} onValueChange={onReassignChange}>
+              <SelectTrigger id="reassign-status" className="w-full">
+                <SelectValue placeholder="Choose a status" />
+              </SelectTrigger>
+              <SelectContent>
+                {otherStatuses.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={hasTickets && !reassignTo}
+            onClick={onConfirm}
+          >
+            Delete
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -310,9 +283,7 @@ export function StatusColumnsSection() {
   const [newColor, setNewColor] = useState("#6366f1");
   const [adding, setAdding] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<StatusColumn | null>(null);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
   const [reassignTo, setReassignTo] = useState("");
-  const [deleting, setDeleting] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -380,38 +351,43 @@ export function StatusColumnsSection() {
   }
 
   function openDelete(status: StatusColumn) {
+    const others = statuses.filter((s) => s.id !== status.id);
     setDeleteTarget(status);
-    setDeleteStep(1);
-    setReassignTo("");
-    setDeleting(false);
+    setReassignTo(others[0]?.id ?? "");
   }
 
   function closeDelete() {
     setDeleteTarget(null);
-    setDeleteStep(1);
     setReassignTo("");
-    setDeleting(false);
   }
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await apiFetch(`/api/v1/statuses/${deleteTarget.id}`, {
-        method: "DELETE",
-        body: JSON.stringify(
-          deleteTarget.ticket_count > 0 ? { reassign_to: reassignTo } : {},
-        ),
-      });
-      setStatusesCache((current) =>
-        (current ?? []).filter((s) => s.id !== deleteTarget.id),
-      );
-      invalidateBoard();
-      closeDelete();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete status");
-      setDeleting(false);
-    }
+
+    const target = deleteTarget;
+    const previous = statuses;
+    const reassignment = reassignTo;
+    closeDelete();
+    setError(null);
+    setStatusesCache((current) =>
+      (current ?? []).filter((s) => s.id !== target.id),
+    );
+    invalidateBoard();
+
+    void (async () => {
+      try {
+        await apiFetch(`/api/v1/statuses/${target.id}`, {
+          method: "DELETE",
+          body: JSON.stringify(
+            target.ticket_count > 0 ? { reassign_to: reassignment } : {},
+          ),
+        });
+      } catch (e) {
+        setStatusesCache(() => previous);
+        invalidateBoard();
+        setError(e instanceof Error ? e.message : "Failed to delete status");
+      }
+    })();
   }
 
   if (loading) {
@@ -512,16 +488,9 @@ export function StatusColumnsSection() {
         <DeleteStatusDialog
           status={deleteTarget}
           otherStatuses={statuses.filter((s) => s.id !== deleteTarget.id)}
-          step={deleteStep}
           reassignTo={reassignTo}
-          deleting={deleting}
           onReassignChange={setReassignTo}
           onCancel={closeDelete}
-          onContinue={() => {
-            setDeleteStep(2);
-            const others = statuses.filter((s) => s.id !== deleteTarget.id);
-            setReassignTo(others[0]?.id ?? "");
-          }}
           onConfirm={confirmDelete}
         />
       )}

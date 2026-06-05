@@ -404,6 +404,7 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
   const hasSearchResults = lanes.some((lane) => lane.tickets.length > 0);
   const handleTicketDeleted = useCallback(
     (ticketId: string) => {
+      dragSessionRef.current.mutedUntil = Date.now() + REALTIME_MUTE_MS;
       setLanes((current) => removeTicketFromLanes(current, ticketId));
       void queryClient.removeQueries({
         queryKey: ticketSummaryQueryKey(ticketId),
@@ -411,12 +412,24 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
       void queryClient.removeQueries({
         queryKey: ticketMessagesQueryKey(ticketId),
       });
-      void queryClient.refetchQueries({ queryKey: ["board"], type: "active" });
       if (pathname === boardTicketPath(ticketId)) {
         router.push("/board");
       }
+
+      void (async () => {
+        try {
+          await apiFetch(`/api/v1/tickets/${ticketId}`, { method: "DELETE" });
+          void queryClient.refetchQueries({
+            queryKey: ["board"],
+            type: "active",
+          });
+        } catch (err) {
+          reloadBoard();
+          setMoveError(err instanceof Error ? err.message : "Delete failed");
+        }
+      })();
     },
-    [pathname, queryClient, router, setLanes],
+    [dragSessionRef, pathname, queryClient, reloadBoard, router, setLanes],
   );
 
   const modalContext = useMemo(

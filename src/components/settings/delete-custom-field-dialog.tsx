@@ -13,12 +13,10 @@ import {
 
 export function DeleteCustomFieldDialog({
   field,
-  deleting,
   onCancel,
   onConfirm,
 }: {
   field: CustomFieldDefinition;
-  deleting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -36,13 +34,8 @@ export function DeleteCustomFieldDialog({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={deleting}
-            onClick={onConfirm}
-          >
-            {deleting ? "Deleting..." : "Delete field"}
+          <Button type="button" variant="destructive" onClick={onConfirm}>
+            Delete field
           </Button>
         </DialogFooter>
       </DialogContent>

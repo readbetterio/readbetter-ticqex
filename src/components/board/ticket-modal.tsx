@@ -137,8 +137,6 @@ export function TicketModal({
     message: string;
   } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-  const [deleteDeleting, setDeleteDeleting] = useState(false);
   const {
     title,
     body,
@@ -342,28 +340,12 @@ export function TicketModal({
   }
 
   function openDeleteDialog() {
-    setDeleteStep(1);
-    setDeleteDeleting(false);
     setDeleteOpen(true);
   }
 
-  function closeDeleteDialog() {
-    if (deleteDeleting) return;
+  function confirmDelete() {
     setDeleteOpen(false);
-    setDeleteStep(1);
-  }
-
-  async function confirmDelete() {
-    setDeleteDeleting(true);
-    setCurrentError(null);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticketId}`, { method: "DELETE" });
-      setDeleteOpen(false);
-      onTicketDeleted(ticketId);
-    } catch (err) {
-      setCurrentError(err instanceof Error ? err.message : "Delete failed");
-      setDeleteDeleting(false);
-    }
+    onTicketDeleted(ticketId);
   }
 
   async function toggleMessageRead(messageId: string) {
@@ -527,7 +509,6 @@ export function TicketModal({
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Ticket actions"
-                  disabled={deleteDeleting}
                 >
                   <DotsThreeVerticalIcon />
                 </Button>
@@ -579,7 +560,6 @@ export function TicketModal({
               size="icon-sm"
               onClick={onClose}
               aria-label="Close"
-              disabled={deleteDeleting}
             >
               <X />
             </Button>
@@ -729,14 +709,8 @@ export function TicketModal({
       <TicketDeleteDialog
         open={deleteOpen}
         kind={deleteKind}
-        step={deleteStep}
-        deleting={deleteDeleting}
-        onOpenChange={(open) => {
-          if (!open) closeDeleteDialog();
-          else setDeleteOpen(true);
-        }}
-        onStepChange={setDeleteStep}
-        onConfirmDelete={() => void confirmDelete()}
+        onOpenChange={setDeleteOpen}
+        onConfirmDelete={confirmDelete}
       />
     </>
   );

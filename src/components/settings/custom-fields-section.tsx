@@ -56,7 +56,6 @@ export function CustomFieldsSection() {
     string | null
   >(null);
   const [deleteTarget, setDeleteTarget] = useState<FieldRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   if (adminQuery.dataUpdatedAt !== syncedAt && adminQuery.data) {
     setSyncedAt(adminQuery.dataUpdatedAt);
@@ -251,22 +250,26 @@ export function CustomFieldsSection() {
     }
   }
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await apiFetch(`/api/v1/custom-fields/${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      setFields((current) => current.filter((f) => f.id !== deleteTarget.id));
-      setDeleteTarget(null);
-      reload();
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete field");
-    } finally {
-      setDeleting(false);
-    }
+
+    const target = deleteTarget;
+    const previous = fields;
+    setDeleteTarget(null);
+    setError(null);
+    setFields((current) => current.filter((f) => f.id !== target.id));
+
+    void (async () => {
+      try {
+        await apiFetch(`/api/v1/custom-fields/${target.id}`, {
+          method: "DELETE",
+        });
+        reload();
+      } catch (err) {
+        setFields(previous);
+        setError(err instanceof Error ? err.message : "Failed to delete field");
+      }
+    })();
   }
 
   if (loading) {
@@ -353,9 +356,8 @@ export function CustomFieldsSection() {
       {deleteTarget && (
         <DeleteCustomFieldDialog
           field={deleteTarget}
-          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => void confirmDelete()}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

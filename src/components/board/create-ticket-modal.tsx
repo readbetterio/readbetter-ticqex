@@ -131,7 +131,7 @@ export function CreateTicketModal({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <DialogFooter className="mb-0 border-0 bg-transparent p-0 pt-2">
+          <DialogFooter className="mx-0 mb-0 border-0 bg-transparent p-0 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>

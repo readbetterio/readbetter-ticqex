@@ -111,12 +111,10 @@ function TagRow({
 
 function DeleteTagDialog({
   tag,
-  deleting,
   onCancel,
   onConfirm,
 }: {
   tag: TagRow;
-  deleting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -133,13 +131,8 @@ function DeleteTagDialog({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={deleting}
-            onClick={onConfirm}
-          >
-            {deleting ? "Deleting…" : "Delete tag"}
+          <Button type="button" variant="destructive" onClick={onConfirm}>
+            Delete tag
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -160,7 +153,6 @@ export function TagsSection() {
   const [newColor, setNewColor] = useState(DEFAULT_TAG_COLOR);
   const [adding, setAdding] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TagRow | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const setTagsCache = useCallback(
     (updater: (current: TagRow[] | undefined) => TagRow[] | undefined) => {
@@ -191,21 +183,25 @@ export function TagsSection() {
     [tags, setTagsCache],
   );
 
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await apiFetch(`/api/v1/tags/${deleteTarget.id}`, { method: "DELETE" });
-      setTagsCache((current) =>
-        (current ?? []).filter((tag) => tag.id !== deleteTarget.id),
-      );
-      setDeleteTarget(null);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete tag");
-    } finally {
-      setDeleting(false);
-    }
+
+    const target = deleteTarget;
+    const previous = tags;
+    setDeleteTarget(null);
+    setError(null);
+    setTagsCache((current) =>
+      (current ?? []).filter((tag) => tag.id !== target.id),
+    );
+
+    void (async () => {
+      try {
+        await apiFetch(`/api/v1/tags/${target.id}`, { method: "DELETE" });
+      } catch (err) {
+        setTagsCache(() => previous);
+        setError(err instanceof Error ? err.message : "Failed to delete tag");
+      }
+    })();
   }
 
   if (loading) {
@@ -301,9 +297,8 @@ export function TagsSection() {
       {deleteTarget && (
         <DeleteTagDialog
           tag={deleteTarget}
-          deleting={deleting}
           onCancel={() => setDeleteTarget(null)}
-          onConfirm={() => void confirmDelete()}
+          onConfirm={confirmDelete}
         />
       )}
     </div>

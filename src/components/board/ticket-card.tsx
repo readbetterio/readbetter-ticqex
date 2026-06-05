@@ -111,8 +111,6 @@ function TicketCardActions({
   const copyContextSettingsQuery = useCopyContextSettings();
   const showCopyContext = copyContextSettingsQuery.data?.visible ?? true;
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
-  const [deleteDeleting, setDeleteDeleting] = useState(false);
   const [moving, setMoving] = useState(false);
   const deleteCopy = ticketDeleteCopy(ticket.kind);
 
@@ -127,28 +125,10 @@ function TicketCardActions({
     (canMove && moveDestinations.length > 0) || showCopyContext;
   const showActionsMenu = hasMenuItemsBeforeDelete || onDeleted != null;
 
-  function openDeleteDialog() {
-    setDeleteStep(1);
-    setDeleteDeleting(false);
-    setDeleteOpen(true);
-  }
-
-  function closeDeleteDialog() {
-    if (deleteDeleting) return;
-    setDeleteOpen(false);
-    setDeleteStep(1);
-  }
-
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!onDeleted) return;
-    setDeleteDeleting(true);
-    try {
-      await apiFetch(`/api/v1/tickets/${ticket.id}`, { method: "DELETE" });
-      setDeleteOpen(false);
-      onDeleted(ticket.id);
-    } catch {
-      setDeleteDeleting(false);
-    }
+    setDeleteOpen(false);
+    onDeleted(ticket.id);
   }
 
   async function copyContext() {
@@ -207,7 +187,7 @@ function TicketCardActions({
                 size="icon-sm"
                 className="text-muted-foreground hover:text-foreground"
                 aria-label="Ticket actions"
-                disabled={deleteDeleting || moving}
+                disabled={moving}
               >
                 <DotsThreeVerticalIcon />
               </Button>
@@ -248,7 +228,7 @@ function TicketCardActions({
               {onDeleted ? (
                 <DropdownMenuItem
                   variant="destructive"
-                  onClick={openDeleteDialog}
+                  onClick={() => setDeleteOpen(true)}
                 >
                   <TrashIcon />
                   {deleteCopy.label}
@@ -262,14 +242,8 @@ function TicketCardActions({
         <TicketDeleteDialog
           open={deleteOpen}
           kind={ticket.kind}
-          step={deleteStep}
-          deleting={deleteDeleting}
-          onOpenChange={(open) => {
-            if (!open) closeDeleteDialog();
-            else setDeleteOpen(true);
-          }}
-          onStepChange={setDeleteStep}
-          onConfirmDelete={() => void confirmDelete()}
+          onOpenChange={setDeleteOpen}
+          onConfirmDelete={confirmDelete}
         />
       ) : null}
     </>

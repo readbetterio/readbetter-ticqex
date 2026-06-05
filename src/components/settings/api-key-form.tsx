@@ -1,7 +1,9 @@
 "use client";
 
 import { type FormEvent, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { adminApiKeysQueryKey } from "@/hooks/use-admin-settings";
 import {
   Dialog,
   DialogContent,
@@ -74,39 +76,36 @@ export function RevokeButton({
   id,
   name,
   keyPrefix,
-  onRevoked,
   onError,
 }: {
   id: string;
   name: string;
   keyPrefix: string;
-  onRevoked: () => void | Promise<void>;
   onError?: (message: string | null) => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [revoking, setRevoking] = useState(false);
 
-  async function revoke() {
-    setRevoking(true);
-    try {
-      await apiFetch(`/api/v1/api-keys/${id}`, { method: "DELETE" });
-      await onRevoked();
-      onError?.(null);
-      setOpen(false);
-    } catch (err) {
-      onError?.(err instanceof Error ? err.message : "Failed to revoke API key");
-    } finally {
-      setRevoking(false);
-    }
+  function revoke() {
+    setOpen(false);
+    onError?.(null);
+    queryClient.setQueryData(
+      adminApiKeysQueryKey,
+      (current: { id: string }[] | undefined) =>
+        (current ?? []).filter((key) => key.id !== id),
+    );
+    void (async () => {
+      try {
+        await apiFetch(`/api/v1/api-keys/${id}`, { method: "DELETE" });
+      } catch (err) {
+        onError?.(err instanceof Error ? err.message : "Failed to revoke API key");
+        void queryClient.invalidateQueries({ queryKey: adminApiKeysQueryKey });
+      }
+    })();
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!revoking) setOpen(nextOpen);
-      }}
-    >
+    <Dialog open={open} onOpenChange={setOpen}>
       <Button
         type="button"
         variant="destructive"
@@ -124,21 +123,11 @@ export function RevokeButton({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={revoking}
-            onClick={() => setOpen(false)}
-          >
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            disabled={revoking}
-            onClick={() => void revoke()}
-          >
-            {revoking ? "Revoking…" : "Revoke key"}
+          <Button type="button" variant="destructive" onClick={revoke}>
+            Revoke key
           </Button>
         </DialogFooter>
       </DialogContent>

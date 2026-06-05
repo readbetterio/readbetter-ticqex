@@ -92,7 +92,6 @@ export function ApiMcpSettingsSection({
                       id={k.id}
                       name={k.name}
                       keyPrefix={k.key_prefix}
-                      onRevoked={onReload}
                       onError={onError}
                     />
                   </li>
