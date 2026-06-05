@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-6">
             <Link
               href="/board"
-              className="flex items-center gap-2.5 font-heading text-lg font-semibold text-foreground"
+              className="flex items-center gap-2.5 font-heading text-lg font-semibold"
             >
               <Image
                 src="/icon-192x192.png"
