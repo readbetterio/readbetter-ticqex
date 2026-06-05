@@ -256,7 +256,7 @@ export const patchSettingsSchema = z.object({
 });
 
 export const createApiKeySchema = z.object({
-  name: z.string().min(1),
+  name: z.string().trim().min(1, "Key name is required"),
 });
 
 export function parseBody<T>(schema: z.ZodType<T>, body: unknown): T {

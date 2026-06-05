@@ -52,6 +52,7 @@ export function ApiMcpSettingsSection({
               onNewKey(key);
               onReload();
             }}
+            onError={onError}
           />
           {newKey && (
             <Alert>
