@@ -29,11 +29,18 @@ const DEFAULT_BOARD_VIEW: BoardViewState = {
   searchQuery: "",
 };
 
-function readStoredView(): BoardViewState {
-  if (typeof window === "undefined") {
-    return { filter: [], sort: DEFAULT_BOARD_SORT, searchQuery: "" };
-  }
+function snapshotKey(view: BoardViewState): string {
+  return JSON.stringify({
+    filter: view.filter,
+    sort: serializeBoardSort(view.sort),
+    searchQuery: view.searchQuery,
+  });
+}
 
+let cachedSnapshot = DEFAULT_BOARD_VIEW;
+let cachedSnapshotKey = snapshotKey(DEFAULT_BOARD_VIEW);
+
+function computeStoredView(): BoardViewState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -73,7 +80,23 @@ function readStoredView(): BoardViewState {
     // ignore
   }
 
-  return { filter: [], sort: DEFAULT_BOARD_SORT, searchQuery: "" };
+  return DEFAULT_BOARD_VIEW;
+}
+
+function readStoredView(): BoardViewState {
+  if (typeof window === "undefined") {
+    return DEFAULT_BOARD_VIEW;
+  }
+
+  const next = computeStoredView();
+  const nextKey = snapshotKey(next);
+  if (nextKey === cachedSnapshotKey) {
+    return cachedSnapshot;
+  }
+
+  cachedSnapshot = next;
+  cachedSnapshotKey = nextKey;
+  return cachedSnapshot;
 }
 
 function writeStoredView(view: BoardViewState) {
