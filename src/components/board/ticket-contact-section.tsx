@@ -136,20 +136,34 @@ function TicketContactSectionBody({
     }
     setSaving(true);
     setSaveError(null);
+
+    const detailKey = contactDetailQueryKey(contactId);
+    await queryClient.cancelQueries({ queryKey: detailKey });
+    const previousDetail = queryClient.getQueryData<ContactDetail>(detailKey);
+    queryClient.setQueryData<ContactDetail>(detailKey, (current) =>
+      current
+        ? {
+            ...current,
+            custom_fields: { ...current.custom_fields, ...customFieldPatch },
+          }
+        : current,
+    );
+
     try {
       await apiFetch(`/api/v1/contacts/${contactId}`, {
         method: "PATCH",
         body: JSON.stringify({ custom_fields: customFieldPatch }),
       });
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: contactDetailQueryKey(contactId),
-        }),
-        queryClient.invalidateQueries({ queryKey: ["board"] }),
-      ]);
       setCustomFieldPatch(undefined);
       setEditing(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: detailKey }),
+        queryClient.invalidateQueries({ queryKey: ["board"] }),
+      ]);
     } catch (e) {
+      if (previousDetail !== undefined) {
+        queryClient.setQueryData(detailKey, previousDetail);
+      }
       setSaveError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);

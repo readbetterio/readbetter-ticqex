@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch } from "@/lib/api-client";
+import { usePatchAdminSettings } from "@/hooks/use-admin-settings-mutation";
 
 export function EmailSignatureForm({
   signature,
@@ -13,17 +13,21 @@ export function EmailSignatureForm({
   onSaved: () => void;
 }) {
   const [value, setValue] = useState(signature);
+  const patchMutation = usePatchAdminSettings();
 
   return (
     <form
       className="space-y-3"
-      onSubmit={async (e) => {
+      onSubmit={(e) => {
         e.preventDefault();
-        await apiFetch("/api/v1/settings", {
-          method: "PATCH",
-          body: JSON.stringify({ email_signature: value }),
-        });
-        onSaved();
+        patchMutation.mutate(
+          { email_signature: value },
+          {
+            onSuccess: () => {
+              onSaved();
+            },
+          },
+        );
       }}
     >
       <Textarea
@@ -33,7 +37,7 @@ export function EmailSignatureForm({
         placeholder={"Best regards,\nSupport Team"}
         className="font-mono"
       />
-      <Button type="submit" size="sm">
+      <Button type="submit" size="sm" disabled={patchMutation.isPending}>
         Save email signature
       </Button>
     </form>

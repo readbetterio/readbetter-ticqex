@@ -4,13 +4,18 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { apiFetch } from "@/lib/api-client";
-import { useEmailSnippets } from "@/hooks/use-email-snippets";
+import {
+  createEmailSnippetOptimistic,
+  deleteEmailSnippetOptimistic,
+  useEmailSnippets,
+} from "@/hooks/use-email-snippets";
 
 export function EmailSnippetsSection() {
-  const { snippets, reload } = useEmailSnippets();
+  const { snippets } = useEmailSnippets();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   return (
     <div className="space-y-4">
@@ -31,11 +36,14 @@ export function EmailSnippetsSection() {
               type="button"
               variant="destructive"
               size="xs"
+              disabled={deletingId === snippet.id}
               onClick={async () => {
-                await apiFetch(`/api/v1/email-snippets/${snippet.id}`, {
-                  method: "DELETE",
-                });
-                await reload();
+                setDeletingId(snippet.id);
+                try {
+                  await deleteEmailSnippetOptimistic(snippet.id);
+                } finally {
+                  setDeletingId(null);
+                }
               }}
             >
               Delete
@@ -50,13 +58,14 @@ export function EmailSnippetsSection() {
         className="space-y-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          await apiFetch("/api/v1/email-snippets", {
-            method: "POST",
-            body: JSON.stringify({ title, body }),
-          });
-          setTitle("");
-          setBody("");
-          await reload();
+          setSaving(true);
+          try {
+            await createEmailSnippetOptimistic({ title, body });
+            setTitle("");
+            setBody("");
+          } finally {
+            setSaving(false);
+          }
         }}
       >
         <Input
@@ -72,7 +81,7 @@ export function EmailSnippetsSection() {
           rows={3}
           required
         />
-        <Button type="submit" size="sm">
+        <Button type="submit" size="sm" disabled={saving}>
           Add snippet
         </Button>
       </form>

@@ -172,6 +172,7 @@ export function TicketModal({
     selectedTags,
     customFieldPatch,
     allTags,
+    users,
     queryClient,
     setSaving,
     setCurrentError,
@@ -209,14 +210,28 @@ export function TicketModal({
     if (!source || !isConversationSummary(source)) return;
     if ((source.unread_count ?? 0) === 0) return;
 
+    const summaryKey = ticketSummaryQueryKey(ticketId);
+    const previousUnread = source.unread_count;
+    const previousSummary = queryClient.getQueryData<TicketSummary>(summaryKey);
+
+    queryClient.setQueryData<TicketSummary>(summaryKey, (current) =>
+      current ? { ...current, unread_count: 0 } : current,
+    );
+    onBoardChange({ id: source.id, unread_count: 0 });
+
     void apiFetch(`/api/v1/tickets/${ticketId}/read`, { method: "POST" }).then(
       () => {
-        queryClient.setQueryData<TicketSummary>(
-          ticketSummaryQueryKey(ticketId),
-          (current) =>
-            current ? { ...current, unread_count: 0 } : current,
-        );
-        onBoardChange({ id: source.id, unread_count: 0 });
+        void queryClient.invalidateQueries({ queryKey: summaryKey });
+      },
+      () => {
+        if (previousSummary !== undefined) {
+          queryClient.setQueryData(summaryKey, previousSummary);
+        } else {
+          queryClient.setQueryData<TicketSummary>(summaryKey, (current) =>
+            current ? { ...current, unread_count: previousUnread } : current,
+          );
+        }
+        onBoardChange();
       },
     );
   }, [summary, ticketId, queryClient, onBoardChange]);
@@ -353,23 +368,39 @@ export function TicketModal({
   }
 
   async function toggleMessageRead(messageId: string) {
+    const messagesKey = ticketMessagesQueryKey(ticketId);
+    await queryClient.cancelQueries({ queryKey: messagesKey });
+    const previousMessages = queryClient.getQueryData<MessageRow[]>(messagesKey);
+    const currentMessage = previousMessages?.find((msg) => msg.id === messageId);
+    if (!currentMessage) return;
+
+    const optimisticRead = !currentMessage.read;
+    queryClient.setQueryData<MessageRow[]>(messagesKey, (current) =>
+      current?.map((msg) =>
+        msg.id === messageId ? { ...msg, read: optimisticRead } : msg,
+      ) ?? current,
+    );
+
     try {
       const result = await apiFetch<{ read: boolean }>(
         `/api/v1/tickets/${ticketId}/messages/${messageId}/read`,
         { method: "PATCH" },
       );
-      queryClient.setQueryData<MessageRow[]>(
-        ticketMessagesQueryKey(ticketId),
-        (current) =>
-          current?.map((msg) =>
-            msg.id === messageId ? { ...msg, read: result.read } : msg,
-          ) ?? current,
+      queryClient.setQueryData<MessageRow[]>(messagesKey, (current) =>
+        current?.map((msg) =>
+          msg.id === messageId ? { ...msg, read: result.read } : msg,
+        ) ?? current,
       );
       onBoardChange();
     } catch (err) {
+      if (previousMessages !== undefined) {
+        queryClient.setQueryData(messagesKey, previousMessages);
+      }
       setCurrentError(
         err instanceof Error ? err.message : "Failed to update read state",
       );
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: messagesKey });
     }
   }
 

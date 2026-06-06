@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -18,12 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiFetch } from "@/lib/api-client";
-import { adminSettingsQueryKey } from "@/hooks/use-admin-settings";
-import {
-  ticketBoardSettingsQueryKey,
-  useTicketThreadOrder,
-} from "@/hooks/use-ticket-reference-data";
+import { usePatchAdminSettings } from "@/hooks/use-admin-settings-mutation";
+import { useTicketThreadOrder } from "@/hooks/use-ticket-reference-data";
 
 export type EmailThreadOrder = "oldest_first" | "newest_first";
 
@@ -41,20 +35,14 @@ const OPTIONS = [
 ];
 
 export function EmailThreadOrderSetting() {
-  const queryClient = useQueryClient();
   const threadOrderQuery = useTicketThreadOrder();
-  const [orderOverride, setOrderOverride] = useState<EmailThreadOrder | null>(
-    null,
-  );
-  const [saving, setSaving] = useState(false);
+  const patchMutation = usePatchAdminSettings();
 
-  const order = orderOverride ?? threadOrderQuery.data ?? null;
-
-  if (threadOrderQuery.isPending && order === null) {
+  if (threadOrderQuery.isPending) {
     return <Skeleton className="h-9 w-full max-w-md" />;
   }
 
-  const resolvedOrder = order ?? "oldest_first";
+  const resolvedOrder = threadOrderQuery.data ?? "oldest_first";
 
   return (
     <Card>
@@ -68,29 +56,10 @@ export function EmailThreadOrderSetting() {
         <Label htmlFor="email-thread-order">Message order</Label>
         <Select
           value={resolvedOrder}
-          onValueChange={async (value: EmailThreadOrder) => {
-            const previous = resolvedOrder;
-            setOrderOverride(value);
-            setSaving(true);
-            try {
-              await apiFetch("/api/v1/settings", {
-                method: "PATCH",
-                body: JSON.stringify({ email_thread_order: value }),
-              });
-              setOrderOverride(null);
-              void queryClient.invalidateQueries({
-                queryKey: ticketBoardSettingsQueryKey,
-              });
-              void queryClient.invalidateQueries({
-                queryKey: adminSettingsQueryKey,
-              });
-            } catch {
-              setOrderOverride(previous);
-            } finally {
-              setSaving(false);
-            }
+          onValueChange={(value: EmailThreadOrder) => {
+            patchMutation.mutate({ email_thread_order: value });
           }}
-          disabled={saving}
+          disabled={patchMutation.isPending}
         >
           <SelectTrigger id="email-thread-order" className="w-full max-w-md">
             <SelectValue />

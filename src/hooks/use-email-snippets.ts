@@ -30,6 +30,13 @@ function getServerSnapshot(): SnippetsStore {
   return { snippets: [], loaded: false };
 }
 
+function applySnippetsUpdate(
+  updater: (snippets: EmailSnippet[]) => EmailSnippet[],
+) {
+  store = { ...store, snippets: updater(store.snippets) };
+  emit();
+}
+
 function ensureLoaded() {
   if (store.loaded || inflight) return inflight;
 
@@ -53,6 +60,44 @@ export function invalidateEmailSnippets() {
   inflight = null;
   emit();
   void ensureLoaded();
+}
+
+export async function createEmailSnippetOptimistic(input: {
+  title: string;
+  body: string;
+}): Promise<EmailSnippet> {
+  const tempId = `temp-${crypto.randomUUID()}`;
+  const optimistic: EmailSnippet = { id: tempId, ...input };
+  const previous = store.snippets;
+  applySnippetsUpdate((snippets) => [...snippets, optimistic]);
+
+  try {
+    const created = await apiFetch<EmailSnippet>("/api/v1/email-snippets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    applySnippetsUpdate((snippets) =>
+      snippets.map((snippet) => (snippet.id === tempId ? created : snippet)),
+    );
+    return created;
+  } catch (error) {
+    store = { ...store, snippets: previous };
+    emit();
+    throw error;
+  }
+}
+
+export async function deleteEmailSnippetOptimistic(id: string): Promise<void> {
+  const previous = store.snippets;
+  applySnippetsUpdate((snippets) => snippets.filter((snippet) => snippet.id !== id));
+
+  try {
+    await apiFetch(`/api/v1/email-snippets/${id}`, { method: "DELETE" });
+  } catch (error) {
+    store = { ...store, snippets: previous };
+    emit();
+    throw error;
+  }
 }
 
 export function useEmailSnippets() {
