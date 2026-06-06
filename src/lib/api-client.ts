@@ -2,6 +2,17 @@
 
 type ApiResponse<T> = { data: T } | { error: { code: string; message: string } };
 
+export type ApiListMeta = {
+  total: number;
+  page: number;
+  per_page: number;
+};
+
+export type ApiListResponse<T> = {
+  data: T[];
+  meta: ApiListMeta;
+};
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
@@ -23,6 +34,32 @@ export async function apiFetch<T>(
     throw new Error("Request failed");
   }
   return json.data;
+}
+
+export async function apiFetchList<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<ApiListResponse<T>> {
+  const res = await fetch(path, {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...init?.headers,
+    },
+  });
+
+  const json = (await res.json()) as
+    | ApiListResponse<T>
+    | { error: { code: string; message: string } };
+
+  if ("error" in json) {
+    throw new Error(json.error.message);
+  }
+  if (!res.ok) {
+    throw new Error("Request failed");
+  }
+  return json;
 }
 
 export async function apiFetchText(path: string): Promise<string> {

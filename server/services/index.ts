@@ -8,3 +8,4 @@ export * from "./users";
 export * from "./board";
 export * from "./custom-fields";
 export * from "./email-inbound";
+export * from "./comments";

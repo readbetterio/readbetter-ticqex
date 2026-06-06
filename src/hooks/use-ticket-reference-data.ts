@@ -3,8 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import type { Tag } from "@/components/tags/types";
 import type { EmailThreadOrder } from "@/components/board/email-conversation-panel";
+import type { CommentThreadOrder } from "@/types/comments";
 import { apiFetch } from "@/lib/api-client";
-import { resolveCopyContextSettings } from "@shared/copy-context";
+import {
+  resolveCopyContextSettings,
+  type CopyContextSettings,
+} from "@shared/copy-context";
 
 type StaffUser = { id: string; username: string };
 
@@ -12,14 +16,48 @@ const REFERENCE_STALE_MS = 5 * 60_000;
 
 export const ticketUsersQueryKey = ["ticket-reference", "users"] as const;
 export const ticketTagsQueryKey = ["ticket-reference", "tags"] as const;
-export const ticketThreadOrderQueryKey = [
+export const ticketBoardSettingsQueryKey = [
   "ticket-reference",
-  "thread-order",
+  "board-settings",
 ] as const;
-export const copyContextSettingsQueryKey = [
-  "ticket-reference",
-  "copy-context",
-] as const;
+
+/** @deprecated Use ticketBoardSettingsQueryKey */
+export const ticketThreadOrderQueryKey = ticketBoardSettingsQueryKey;
+/** @deprecated Use ticketBoardSettingsQueryKey */
+export const ticketCommentThreadOrderQueryKey = ticketBoardSettingsQueryKey;
+/** @deprecated Use ticketBoardSettingsQueryKey */
+export const copyContextSettingsQueryKey = ticketBoardSettingsQueryKey;
+
+export type TicketBoardSettings = {
+  emailThreadOrder: EmailThreadOrder;
+  commentThreadOrder: CommentThreadOrder;
+  copyContext: CopyContextSettings;
+};
+
+async function fetchTicketBoardSettings(): Promise<TicketBoardSettings> {
+  const settings = await apiFetch<{
+    email_thread_order?: EmailThreadOrder;
+    comment_thread_order?: CommentThreadOrder;
+    copy_context?: unknown;
+  }>("/api/v1/settings");
+
+  return {
+    emailThreadOrder: settings.email_thread_order ?? "oldest_first",
+    commentThreadOrder: settings.comment_thread_order ?? "oldest_first",
+    copyContext: resolveCopyContextSettings(settings.copy_context),
+  };
+}
+
+export function useTicketBoardSettings<T = TicketBoardSettings>(options?: {
+  select?: (data: TicketBoardSettings) => T;
+}) {
+  return useQuery({
+    queryKey: ticketBoardSettingsQueryKey,
+    queryFn: fetchTicketBoardSettings,
+    staleTime: REFERENCE_STALE_MS,
+    ...options,
+  });
+}
 
 export function useTicketUsers() {
   return useQuery({
@@ -38,28 +76,20 @@ export function useTicketTags() {
 }
 
 export function useTicketThreadOrder() {
-  return useQuery({
-    queryKey: ticketThreadOrderQueryKey,
-    queryFn: async () => {
-      const settings = await apiFetch<{ email_thread_order?: EmailThreadOrder }>(
-        "/api/v1/settings",
-      );
-      return settings.email_thread_order ?? "oldest_first";
-    },
-    staleTime: REFERENCE_STALE_MS,
+  return useTicketBoardSettings({
+    select: (data) => data.emailThreadOrder,
+  });
+}
+
+export function useTicketCommentThreadOrder() {
+  return useTicketBoardSettings({
+    select: (data) => data.commentThreadOrder,
   });
 }
 
 export function useCopyContextSettings() {
-  return useQuery({
-    queryKey: copyContextSettingsQueryKey,
-    queryFn: async () => {
-      const settings = await apiFetch<{ copy_context?: unknown }>(
-        "/api/v1/settings",
-      );
-      return resolveCopyContextSettings(settings.copy_context);
-    },
-    staleTime: REFERENCE_STALE_MS,
+  return useTicketBoardSettings({
+    select: (data) => data.copyContext,
   });
 }
 
@@ -79,23 +109,8 @@ export function prefetchTicketReferenceData(
     staleTime: REFERENCE_STALE_MS,
   });
   void queryClient.prefetchQuery({
-    queryKey: ticketThreadOrderQueryKey,
-    queryFn: async () => {
-      const settings = await apiFetch<{ email_thread_order?: EmailThreadOrder }>(
-        "/api/v1/settings",
-      );
-      return settings.email_thread_order ?? "oldest_first";
-    },
-    staleTime: REFERENCE_STALE_MS,
-  });
-  void queryClient.prefetchQuery({
-    queryKey: copyContextSettingsQueryKey,
-    queryFn: async () => {
-      const settings = await apiFetch<{ copy_context?: unknown }>(
-        "/api/v1/settings",
-      );
-      return resolveCopyContextSettings(settings.copy_context);
-    },
+    queryKey: ticketBoardSettingsQueryKey,
+    queryFn: fetchTicketBoardSettings,
     staleTime: REFERENCE_STALE_MS,
   });
 }

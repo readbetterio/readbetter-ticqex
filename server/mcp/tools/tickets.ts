@@ -4,6 +4,8 @@ import { enqueueChannelOutbound } from "@server/channels/email/background";
 import { isChannelOperational } from "@server/config/channel-gate";
 import { ApiError } from "@server/lib/errors";
 import {
+  commentInputSchema,
+  commentUpdateSchema,
   createTicketMcpInputSchema,
   createTicketSchema,
   messageInputSchema,
@@ -25,6 +27,12 @@ import {
   sendAgentDraft,
   updateAgentDraft,
 } from "@server/services/messages";
+import {
+  createTicketComment,
+  deleteTicketComment,
+  listTicketComments,
+  updateTicketComment,
+} from "@server/services/comments";
 import {
   markTicketMessagesRead,
   setMessageReadState,
@@ -183,6 +191,73 @@ export function registerTicketTools(server: McpServer) {
       }
       return toolResult(created);
     },
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_list_ticket_comments",
+    {
+      title: "List Ticket Comments",
+      description: "List internal comments for a ticket using GET /api/v1/tickets/:id/comments.",
+      inputSchema: { ticket_id: uuid, ...paginationInput },
+    },
+    async ({ ticket_id, ...input }, auth) =>
+      toolResult(
+        await listTicketComments(ticket_id, paramsFrom(input), auth),
+      ),
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_create_ticket_comment",
+    {
+      title: "Create Ticket Comment",
+      description: "Create an internal markdown comment on a ticket.",
+      inputSchema: { ticket_id: uuid, comment: commentInputSchema },
+    },
+    async ({ ticket_id, comment }, auth) =>
+      toolResult(
+        await createTicketComment(
+          ticket_id,
+          parseBody(commentInputSchema, comment),
+          auth,
+        ),
+      ),
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_update_ticket_comment",
+    {
+      title: "Update Ticket Comment",
+      description: "Update an internal ticket comment.",
+      inputSchema: {
+        ticket_id: uuid,
+        comment_id: uuid,
+        comment: commentUpdateSchema,
+      },
+    },
+    async ({ ticket_id, comment_id, comment }, auth) =>
+      toolResult(
+        await updateTicketComment(
+          ticket_id,
+          comment_id,
+          parseBody(commentUpdateSchema, comment),
+          auth,
+        ),
+      ),
+  );
+
+  registerAuthedTool(
+    server,
+    "ticqex_delete_ticket_comment",
+    {
+      title: "Delete Ticket Comment",
+      description: "Hard-delete an internal ticket comment.",
+      inputSchema: { ticket_id: uuid, comment_id: uuid },
+    },
+    async ({ ticket_id, comment_id }, auth) =>
+      toolResult(await deleteTicketComment(ticket_id, comment_id, auth)),
   );
 
   registerAuthedTool(

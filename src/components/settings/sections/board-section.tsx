@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { StatusColumnsSection } from "@/components/settings/status-columns-section";
 import { TagsSection } from "@/components/settings/tags-section";
+import { CommentThreadOrderSetting } from "@/components/settings/comment-thread-order-setting";
 import { CopyContextSettingsSection } from "@/components/settings/copy-context-settings-section";
 
 export function BoardSettingsSection() {
@@ -39,6 +40,8 @@ export function BoardSettingsSection() {
           <TagsSection />
         </CardContent>
       </Card>
+
+      <CommentThreadOrderSetting />
 
       <CopyContextSettingsSection />
     </div>

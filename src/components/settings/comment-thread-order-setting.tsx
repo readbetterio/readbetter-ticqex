@@ -22,28 +22,27 @@ import { apiFetch } from "@/lib/api-client";
 import { adminSettingsQueryKey } from "@/hooks/use-admin-settings";
 import {
   ticketBoardSettingsQueryKey,
-  useTicketThreadOrder,
+  useTicketCommentThreadOrder,
 } from "@/hooks/use-ticket-reference-data";
-
-export type EmailThreadOrder = "oldest_first" | "newest_first";
+import type { CommentThreadOrder } from "@/types/comments";
 
 const OPTIONS = [
   {
     value: "oldest_first" as const,
     label: "Oldest at top",
-    description: "Chat-style — newest at the bottom, scroll down to read latest",
+    description: "Chronological — newest comments appear at the bottom",
   },
   {
     value: "newest_first" as const,
     label: "Newest at top",
-    description: "Inbox-style — newest at the top, scroll up for history",
+    description: "Reverse chronological — newest comments appear at the top",
   },
 ];
 
-export function EmailThreadOrderSetting() {
+export function CommentThreadOrderSetting() {
   const queryClient = useQueryClient();
-  const threadOrderQuery = useTicketThreadOrder();
-  const [orderOverride, setOrderOverride] = useState<EmailThreadOrder | null>(
+  const threadOrderQuery = useTicketCommentThreadOrder();
+  const [orderOverride, setOrderOverride] = useState<CommentThreadOrder | null>(
     null,
   );
   const [saving, setSaving] = useState(false);
@@ -59,23 +58,23 @@ export function EmailThreadOrderSetting() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email thread order</CardTitle>
+        <CardTitle>Comment order</CardTitle>
         <CardDescription>
-          How messages are sorted in the ticket conversation view.
+          How internal ticket comments are sorted in the ticket view.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        <Label htmlFor="email-thread-order">Message order</Label>
+        <Label htmlFor="comment-thread-order">Comment order</Label>
         <Select
           value={resolvedOrder}
-          onValueChange={async (value: EmailThreadOrder) => {
+          onValueChange={async (value: CommentThreadOrder) => {
             const previous = resolvedOrder;
             setOrderOverride(value);
             setSaving(true);
             try {
               await apiFetch("/api/v1/settings", {
                 method: "PATCH",
-                body: JSON.stringify({ email_thread_order: value }),
+                body: JSON.stringify({ comment_thread_order: value }),
               });
               setOrderOverride(null);
               void queryClient.invalidateQueries({
@@ -92,7 +91,7 @@ export function EmailThreadOrderSetting() {
           }}
           disabled={saving}
         >
-          <SelectTrigger id="email-thread-order" className="w-full max-w-md">
+          <SelectTrigger id="comment-thread-order" className="w-full max-w-md">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

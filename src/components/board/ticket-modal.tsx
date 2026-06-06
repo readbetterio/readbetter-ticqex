@@ -56,10 +56,12 @@ import {
 import type { TicketModalSeed } from "./board-ticket-seed";
 import {
   useCopyContextSettings,
+  useTicketCommentThreadOrder,
   useTicketTags,
   useTicketThreadOrder,
   useTicketUsers,
 } from "@/hooks/use-ticket-reference-data";
+import { TicketCommentsSection } from "./ticket-comments-section";
 import { TicketConversationSection } from "./ticket-conversation-section";
 import { TicketContactSection } from "./ticket-contact-section";
 import { TicketDetailsSection } from "./ticket-details-section";
@@ -118,12 +120,14 @@ export function TicketModal({
   const usersQuery = useTicketUsers();
   const tagsQuery = useTicketTags();
   const threadOrderQuery = useTicketThreadOrder();
+  const commentThreadOrderQuery = useTicketCommentThreadOrder();
   const copyContextSettingsQuery = useCopyContextSettings();
 
   const summary = summaryQuery.data;
   const users = usersQuery.data ?? [];
   const allTags = tagsQuery.data ?? [];
   const threadOrder = threadOrderQuery.data ?? "oldest_first";
+  const commentThreadOrder = commentThreadOrderQuery.data ?? "oldest_first";
   const showCopyContext = copyContextSettingsQuery.data?.visible ?? true;
 
   const { recentNames, touch: touchRecentTags } = useRecentTags();
@@ -578,7 +582,7 @@ export function TicketModal({
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
           {metaLoading ? <TicketMetaSkeleton /> : null}
 
           {metaReady && detailSummary && (
@@ -693,6 +697,13 @@ export function TicketModal({
 
           {isConversation && !detailSummary && summaryQuery.isFetching && (
             <TicketConversationSkeleton />
+          )}
+
+          {detailSummary && (
+            <TicketCommentsSection
+              ticketId={ticketId}
+              threadOrder={commentThreadOrder}
+            />
           )}
         </div>
 

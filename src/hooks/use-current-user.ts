@@ -4,6 +4,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { apiFetch } from "@/lib/api-client";
 
 export type CurrentUser = {
+  id: string;
   username: string;
   email: string;
   role: string;

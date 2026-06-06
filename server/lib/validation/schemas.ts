@@ -28,6 +28,16 @@ export const messageInputSchema = z.object({
   email: emailComposeOptionsSchema.optional(),
 });
 
+export const COMMENT_BODY_MAX = 32000;
+
+export const commentInputSchema = z.object({
+  body: z.string().trim().min(1).max(COMMENT_BODY_MAX),
+});
+
+export const commentUpdateSchema = z.object({
+  body: z.string().trim().min(1).max(COMMENT_BODY_MAX),
+});
+
 const ticketBaseSchema = z.object({
   title: z.string().trim().min(1),
   status_id: z.string().uuid().optional(),
@@ -252,6 +262,7 @@ export const patchSettingsSchema = z.object({
   ticket_field_visibility: ticketFieldVisibilitySchema.optional(),
   email_signature: z.string().optional(),
   email_thread_order: z.enum(["oldest_first", "newest_first"]).optional(),
+  comment_thread_order: z.enum(["oldest_first", "newest_first"]).optional(),
   copy_context: copyContextSettingsPatchSchema.optional(),
 });
 

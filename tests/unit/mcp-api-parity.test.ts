@@ -10,6 +10,9 @@ const FRONTEND_MUTATION_MCP_TOOLS: Record<string, string> = {
   "POST /api/v1/tickets/:id/read": "ticqex_mark_ticket_read",
   "POST /api/v1/tickets/:id/attachment-uploads": "ticqex_stage_ticket_attachment_upload",
   "POST /api/v1/tickets/:id/messages": "ticqex_create_ticket_message",
+  "POST /api/v1/tickets/:id/comments": "ticqex_create_ticket_comment",
+  "PATCH /api/v1/tickets/:id/comments/:commentId": "ticqex_update_ticket_comment",
+  "DELETE /api/v1/tickets/:id/comments/:commentId": "ticqex_delete_ticket_comment",
   "POST /api/v1/tickets/:id/messages/drafts": "ticqex_create_ticket_draft",
   "PATCH /api/v1/tickets/:id/messages/drafts/:messageId": "ticqex_update_ticket_draft",
   "POST /api/v1/tickets/:id/messages/drafts/:messageId/send": "ticqex_send_ticket_draft",
@@ -31,6 +34,11 @@ const FRONTEND_MUTATION_MCP_TOOLS: Record<string, string> = {
   "PATCH /api/v1/settings": "ticqex_patch_settings",
   "POST /api/v1/email-snippets": "ticqex_create_email_snippet",
   "DELETE /api/v1/email-snippets/:id": "ticqex_delete_email_snippet",
+};
+
+/** Read routes the UI uses that should have MCP list/get parity. */
+const FRONTEND_READ_MCP_TOOLS: Record<string, string> = {
+  "GET /api/v1/tickets/:id/comments": "ticqex_list_ticket_comments",
 };
 
 /** Intentionally REST-only: bootstrap credentials and session auth. */
@@ -78,5 +86,11 @@ describe("MCP / API parity for frontend mutations", () => {
   it("includes board read tools used by filter/sort UI", () => {
     expect(mcpTools).toContain("ticqex_get_board");
     expect(mcpTools).toContain("ticqex_get_board_filter_options");
+  });
+
+  it("registers an MCP tool for each frontend REST read route", () => {
+    for (const [route, toolName] of Object.entries(FRONTEND_READ_MCP_TOOLS)) {
+      expect(mcpTools, `${route} → ${toolName}`).toContain(toolName);
+    }
   });
 });

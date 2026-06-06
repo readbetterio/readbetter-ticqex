@@ -8,7 +8,10 @@ import {
 } from "@shared/copy-context";
 import { apiFetch } from "@/lib/api-client";
 import { adminSettingsQueryKey } from "@/hooks/use-admin-settings";
-import { copyContextSettingsQueryKey } from "@/hooks/use-ticket-reference-data";
+import {
+  ticketBoardSettingsQueryKey,
+  type TicketBoardSettings,
+} from "@/hooks/use-ticket-reference-data";
 
 export function usePatchCopyContextSettings() {
   const queryClient = useQueryClient();
@@ -21,15 +24,21 @@ export function usePatchCopyContextSettings() {
       });
     },
     onMutate: async (patch) => {
-      await queryClient.cancelQueries({ queryKey: copyContextSettingsQueryKey });
+      await queryClient.cancelQueries({ queryKey: ticketBoardSettingsQueryKey });
 
-      const previous = queryClient.getQueryData<CopyContextSettings>(
-        copyContextSettingsQueryKey,
+      const previous = queryClient.getQueryData<TicketBoardSettings>(
+        ticketBoardSettingsQueryKey,
       );
 
-      queryClient.setQueryData<CopyContextSettings>(
-        copyContextSettingsQueryKey,
-        (current) => mergeCopyContextPatch(current, patch),
+      queryClient.setQueryData<TicketBoardSettings>(
+        ticketBoardSettingsQueryKey,
+        (current) =>
+          current
+            ? {
+                ...current,
+                copyContext: mergeCopyContextPatch(current.copyContext, patch),
+              }
+            : current,
       );
 
       return { previous };
@@ -37,14 +46,16 @@ export function usePatchCopyContextSettings() {
     onError: (_error, _patch, context) => {
       if (context?.previous !== undefined) {
         queryClient.setQueryData(
-          copyContextSettingsQueryKey,
+          ticketBoardSettingsQueryKey,
           context.previous,
         );
       }
       toast.error("Could not save copy context setting");
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: copyContextSettingsQueryKey });
+      void queryClient.invalidateQueries({
+        queryKey: ticketBoardSettingsQueryKey,
+      });
       void queryClient.invalidateQueries({ queryKey: adminSettingsQueryKey });
     },
   });

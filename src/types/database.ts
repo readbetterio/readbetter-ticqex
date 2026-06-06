@@ -4,6 +4,18 @@ export type TicketKind = "task" | "conversation";
 
 export type TicketChannel = "email";
 
+export type CommentAuthorType = "agent" | "api_key";
+
+export type CommentDbRow = {
+  id: string;
+  ticket_id: string;
+  body: string;
+  author_type: CommentAuthorType;
+  author_id: string | null;
+  api_key_id: string | null;
+  created_at: string;
+};
+
 export type MessageDbRow = {
   id: string;
   ticket_id: string;

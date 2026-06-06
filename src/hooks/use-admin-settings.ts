@@ -15,6 +15,7 @@ export type AdminSettings = {
   sections?: SettingsSectionDescriptor[];
   default_inbound_status_id?: string | null;
   email_thread_order?: "oldest_first" | "newest_first";
+  comment_thread_order?: "oldest_first" | "newest_first";
   ticket_field_layout?: import("@shared/ticket-fields").ResolvedTicketFieldLayout;
 };
 
