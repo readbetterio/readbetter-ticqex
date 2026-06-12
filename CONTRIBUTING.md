@@ -43,7 +43,10 @@ PRs must pass lint, build, and unit tests in CI before review.
 ## Database changes
 
 - Schema is defined in `supabase/migrations/` and is the source of truth.
-- Add a new migration file; **never** edit applied migrations in place.
+- Until the first public release, maintainers may squash local migration history
+  into a clean baseline for distribution.
+- After the first public release, add a new migration file; **never** edit applied
+  migrations in place.
 - Apply locally with `pnpm db:reset` (clean) or `pnpm db:start` (pending).
 - **Never** run migrations against a remote or production database.
 
