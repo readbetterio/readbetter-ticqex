@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./public/web-app-manifest-192x192.png" alt="Ticqex logo" width="72" height="72">
+</p>
+
 # Ticqex
 
 > A thin UX and data layer for support and helpdesk — where humans and AI agents work the same queue, together.
