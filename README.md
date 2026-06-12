@@ -112,14 +112,9 @@ You need a Supabase project, a Vercel project connected to this repo, a Resend a
   ```bash
    RESEND_API_KEY=re_... pnpm resend:setup-webhooks --app-url https://<your-vercel-host>
   ```
-5. **First admin** — run locally against the cloud project (values live only in this shell; never commit them):
-  ```bash
-   NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co \
-   SUPABASE_SECRET_KEY=<secret-key> \
-   SEED_ADMIN_EMAIL=you@example.com \
-   SEED_ADMIN_PASSWORD='choose-a-strong-password' \
-   pnpm db:seed-admin
-  ```
+5. **First admin** — create the user in the Supabase dashboard, then promote it to admin:
+   - In your project, go to **Authentication → Users → Add user → Create new user**, enter the email and password, and tick **Auto Confirm User**.
+   - New sign-ups default to the `agent` role, so grant admin once: open **Table Editor → `users`**, find the row for that email (created automatically), and set `role` to `admin`. (Equivalently, run `update public.users set role = 'admin' where email = 'you@example.com';` in the **SQL Editor**.)
 6. **Verify** — `https://<host>/api/health` returns `"database":"ok"`, admin sign-in works, and (if enabled) an inbound test email becomes a ticket.
 
 ## Environment reference
