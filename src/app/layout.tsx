@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/query-provider";
 import { AppToaster } from "@/components/ui/toaster";
+import {
+  APP_DESCRIPTION,
+  APP_NAME,
+  APP_SHORT_NAME,
+} from "@shared/brand";
 
 const calSans = localFont({
   src: "../../node_modules/cal-sans/fonts/webfonts/CalSans-SemiBold.woff2",
@@ -14,11 +19,11 @@ const calSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Ticqex",
-  description: "Agent-first support platform",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
   manifest: "/manifest.json",
   appleWebApp: {
-    title: "Ticqex",
+    title: APP_SHORT_NAME,
   },
 };
 

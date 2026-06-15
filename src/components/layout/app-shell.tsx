@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { UserMenu } from "@/components/layout/user-menu";
 import { cn } from "@/lib/utils";
+import { APP_ICON, APP_NAME } from "@shared/brand";
 
 const nav = [
   { href: "/board", label: "Board" },
@@ -26,14 +27,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex items-center gap-2.5 font-heading text-lg font-semibold"
             >
               <Image
-                src="/web-app-manifest-192x192.png"
+                src={APP_ICON}
                 alt=""
                 width={28}
                 height={28}
                 className="size-7 rounded-md"
                 priority
               />
-              ticqex
+              {APP_NAME}
             </Link>
             <Separator orientation="vertical" className="h-5" />
             <nav className="flex gap-1">

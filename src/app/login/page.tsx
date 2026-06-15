@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { login, type LoginState } from "./actions";
+import { APP_ICON, APP_NAME } from "@shared/brand";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -88,8 +89,8 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="justify-items-center text-center">
           <Image
-            src="/web-app-manifest-192x192.png"
-            alt="Ticqex"
+            src={APP_ICON}
+            alt={APP_NAME}
             width={56}
             height={56}
             className="size-14 rounded-xl"
