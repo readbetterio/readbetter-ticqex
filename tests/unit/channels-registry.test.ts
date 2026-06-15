@@ -94,6 +94,25 @@ describe("email card surface", () => {
     ]);
     expect(built.warning_badges).toHaveLength(0);
   });
+
+  it("keeps regular ticket custom fields on channel card surfaces", () => {
+    const built = buildTicketCardSurface({
+      kind: "conversation",
+      channel: "email",
+      contact_address: "user@example.com",
+      custom_fields: { urgency: "low" },
+    });
+
+    expect(built.chips).toEqual([
+      {
+        fieldId: "contact_address",
+        sourceKey: "contact_address",
+        label: "Email address",
+        value: "user@example.com",
+      },
+      { sourceKey: "urgency", label: "urgency", value: "low" },
+    ]);
+  });
 });
 
 describe("field policy helpers", () => {

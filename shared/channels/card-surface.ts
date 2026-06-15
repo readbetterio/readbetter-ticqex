@@ -9,22 +9,45 @@ const channelCardBuilders: Record<string, ChannelCardSurfaceBuilder> = {
   email: emailCardSurface,
 };
 
-function buildDefaultCardSurface(
-  context: ChannelCardTicketContext,
-): TicketCardSurface {
-  const chips = Object.entries(context.custom_fields)
+function buildCustomFieldChips(
+  customFields: ChannelCardTicketContext["custom_fields"],
+): TicketCardSurface["chips"] {
+  return Object.entries(customFields)
     .filter(([, value]) => value != null && value !== "")
     .map(([key, value]) => ({
       sourceKey: key,
       label: key,
       value: String(value),
     }));
+}
 
+function appendCustomFieldChips(
+  surface: TicketCardSurface,
+  context: ChannelCardTicketContext,
+): TicketCardSurface {
+  const claimedSourceKeys = new Set(
+    surface.chips.flatMap((chip) =>
+      chip.sourceKey === undefined ? [] : [chip.sourceKey],
+    ),
+  );
+  const chips = buildCustomFieldChips(context.custom_fields).filter(
+    (chip) => !claimedSourceKeys.has(chip.sourceKey ?? ""),
+  );
+
+  return {
+    ...surface,
+    chips: [...surface.chips, ...chips],
+  };
+}
+
+function buildDefaultCardSurface(
+  context: ChannelCardTicketContext,
+): TicketCardSurface {
   return {
     badges: [],
     warning_badges: [],
     preview: context.preview ?? "",
-    chips,
+    chips: buildCustomFieldChips(context.custom_fields),
   };
 }
 
@@ -40,5 +63,5 @@ export function buildTicketCardSurface(
     return buildDefaultCardSurface(context);
   }
 
-  return builder.build(context);
+  return appendCustomFieldChips(builder.build(context), context);
 }
