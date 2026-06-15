@@ -35,8 +35,17 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Build workspace packages
+        run: pnpm build:packages
+
+      - name: Package tests
+        run: pnpm test:packages
+
       - name: Unit tests
         run: pnpm test:unit
+
+      - name: OpenAPI spec check
+        run: pnpm openapi:check
 
       - name: Build
         run: pnpm build

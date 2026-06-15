@@ -1,0 +1,50 @@
+{
+  "name": "@ticqex/cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for the Ticqex REST API",
+  "license": "MIT",
+  "homepage": "https://github.com/rbouschery/ticqex/tree/main/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rbouschery/ticqex.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/rbouschery/ticqex/issues"
+  },
+  "type": "module",
+  "bin": {
+    "ticqex": "./dist/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@ticqex/api-client": "workspace:*",
+    "@ticqex/api-spec": "workspace:*",
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "typescript": "^5",
+    "vitest": "^4.1.8"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

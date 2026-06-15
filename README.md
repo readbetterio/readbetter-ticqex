@@ -112,14 +112,9 @@ You need a Supabase project, a Vercel project connected to this repo, a Resend a
   ```bash
    RESEND_API_KEY=re_... pnpm resend:setup-webhooks --app-url https://<your-vercel-host>
   ```
-5. **First admin** — run locally against the cloud project (values live only in this shell; never commit them):
-  ```bash
-   NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co \
-   SUPABASE_SECRET_KEY=<secret-key> \
-   SEED_ADMIN_EMAIL=you@example.com \
-   SEED_ADMIN_PASSWORD='choose-a-strong-password' \
-   pnpm db:seed-admin
-  ```
+5. **First admin** — create the user in the Supabase dashboard, then promote it to admin:
+   - In your project, go to **Authentication → Users → Add user → Create new user**, enter the email and password, and tick **Auto Confirm User**.
+   - New sign-ups default to the `agent` role, so grant admin once: open **Table Editor → `users`**, find the row for that email (created automatically), and set `role` to `admin`. (Equivalently, run `update public.users set role = 'admin' where email = 'you@example.com';` in the **SQL Editor**.)
 6. **Verify** — `https://<host>/api/health` returns `"database":"ok"`, admin sign-in works, and (if enabled) an inbound test email becomes a ticket.
 
 ## Environment reference
@@ -147,6 +142,20 @@ Agents connect like any automation: **REST** (`/api/v1/`*) or **MCP** (`/api/mcp
 
 MCP tools mirror the REST mutations agents need (tickets, board moves, messages, contacts, tags, statuses, custom fields, settings, …); parity is enforced in `tests/unit/mcp-api-parity.test.ts`. API key lifecycle stays in the admin UI and REST only — not exposed over MCP.
 
+### Agent CLI (`@ticqex/cli`)
+
+For shell-based agents and scripts, use the published CLI (or `pnpm exec ticqex` from this repo after `pnpm --filter @ticqex/cli build`):
+
+```bash
+ticqex auth login --instance https://your-instance.example.com
+ticqex tickets list --page 1 --json
+ticqex call ticqex_get_ticket --input '{"id":"<uuid>"}'
+```
+
+See [`packages/cli/README.md`](packages/cli/README.md). Request schemas: [`docs/openapi.yaml`](docs/openapi.yaml).
+
+OpenAPI spec: [`docs/openapi.yaml`](docs/openapi.yaml) — regenerate with `pnpm openapi:generate`, verify with `pnpm openapi:check`.
+
 ## Scripts
 
 
@@ -163,6 +172,8 @@ MCP tools mirror the REST mutations agents need (tickets, board moves, messages,
 | `pnpm db:bootstrap`                            | Required statuses + settings (empty board)                              |
 | `pnpm db:seed-admin`                           | Create admin user from `SEED_ADMIN_*`                                   |
 | `pnpm test` / `test:unit` / `test:integration` | Vitest suites under `tests/`                                            |
+| `pnpm openapi:generate` / `openapi:check`      | Generate or verify `docs/openapi.yaml`                                  |
+| `pnpm build:packages` / `test:packages`        | Build and test `@ticqex/*` workspace packages                           |
 | `pnpm seed:board-load`                         | Optional: large board dataset for manual load testing                   |
 
 

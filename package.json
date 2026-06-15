@@ -50,6 +50,10 @@
     "test:watch": "vitest",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "build:packages": "pnpm --filter @ticqex/api-spec --filter @ticqex/api-client --filter @ticqex/cli build",
+    "test:packages": "pnpm --filter @ticqex/api-spec --filter @ticqex/api-client --filter @ticqex/cli test",
+    "openapi:generate": "pnpm --filter @ticqex/api-spec build && tsx scripts/generate-openapi.ts",
+    "openapi:check": "pnpm --filter @ticqex/api-spec build && tsx scripts/generate-openapi.ts --check",
     "seed:board-load": "tsx --env-file=.env.local scripts/seed-board-load.ts"
   },
   "dependencies": {
@@ -81,6 +85,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@ticqex/api-spec": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^25",
     "@types/react": "^19",
@@ -92,7 +97,8 @@
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "yaml": "^2.8.2"
   },
   "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8"
 }
