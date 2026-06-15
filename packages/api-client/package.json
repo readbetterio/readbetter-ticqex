@@ -1,0 +1,44 @@
+{
+  "name": "@ticqex/api-client",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Ticqex REST API (/api/v1)",
+  "license": "MIT",
+  "homepage": "https://github.com/rbouschery/ticqex/tree/main/packages/api-client#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rbouschery/ticqex.git",
+    "directory": "packages/api-client"
+  },
+  "bugs": {
+    "url": "https://github.com/rbouschery/ticqex/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "typescript": "^5",
+    "vitest": "^4.1.8"
+  }
+}

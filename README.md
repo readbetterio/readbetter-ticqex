@@ -142,6 +142,20 @@ Agents connect like any automation: **REST** (`/api/v1/`*) or **MCP** (`/api/mcp
 
 MCP tools mirror the REST mutations agents need (tickets, board moves, messages, contacts, tags, statuses, custom fields, settings, …); parity is enforced in `tests/unit/mcp-api-parity.test.ts`. API key lifecycle stays in the admin UI and REST only — not exposed over MCP.
 
+### Agent CLI (`@ticqex/cli`)
+
+For shell-based agents and scripts, use the published CLI (or `pnpm exec ticqex` from this repo after `pnpm --filter @ticqex/cli build`):
+
+```bash
+ticqex auth login --instance https://your-instance.example.com
+ticqex tickets list --page 1 --json
+ticqex call ticqex_get_ticket --input '{"id":"<uuid>"}'
+```
+
+See [`packages/cli/README.md`](packages/cli/README.md). Request schemas: [`docs/openapi.yaml`](docs/openapi.yaml).
+
+OpenAPI spec: [`docs/openapi.yaml`](docs/openapi.yaml) — regenerate with `pnpm openapi:generate`, verify with `pnpm openapi:check`.
+
 ## Scripts
 
 
@@ -158,6 +172,8 @@ MCP tools mirror the REST mutations agents need (tickets, board moves, messages,
 | `pnpm db:bootstrap`                            | Required statuses + settings (empty board)                              |
 | `pnpm db:seed-admin`                           | Create admin user from `SEED_ADMIN_*`                                   |
 | `pnpm test` / `test:unit` / `test:integration` | Vitest suites under `tests/`                                            |
+| `pnpm openapi:generate` / `openapi:check`      | Generate or verify `docs/openapi.yaml`                                  |
+| `pnpm build:packages` / `test:packages`        | Build and test `@ticqex/*` workspace packages                           |
 | `pnpm seed:board-load`                         | Optional: large board dataset for manual load testing                   |
 
 

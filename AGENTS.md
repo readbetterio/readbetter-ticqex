@@ -89,8 +89,10 @@ runner.
 | `server/integrations/` | External providers (Resend) |
 | `server/lib/`, `server/middleware/` | Route handlers, auth, validation, errors |
 | `shared/` | Code shared between client and server (config, registries, schemas) |
+| `packages/` | Published workspace packages (`@ticqex/cli`, `@ticqex/api-client`, `@ticqex/api-spec`) |
+| `docs/openapi.yaml` | Generated OpenAPI spec (`pnpm openapi:generate`) |
 | `supabase/migrations/` | Database schema (source of truth) |
-| `scripts/` | Setup/seed/verify CLIs (`pnpm ticqex`, `db:*`, `config:*`) |
+| `scripts/` | Setup/seed/verify CLIs (`pnpm ticqex`, `db:*`, `config:*`) and OpenAPI generator |
 | `config/` | Activation config (`ticqex.config.json`, committed) |
 | `tests/unit`, `tests/integration` | Vitest suites (helpers in `tests/helpers/`) |
 

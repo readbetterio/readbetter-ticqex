@@ -1,0 +1,45 @@
+{
+  "name": "@ticqex/api-spec",
+  "version": "0.1.0",
+  "description": "Shared Ticqex API operation catalog for CLI and OpenAPI generation",
+  "license": "MIT",
+  "homepage": "https://github.com/rbouschery/ticqex/tree/main/packages/api-spec#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rbouschery/ticqex.git",
+    "directory": "packages/api-spec"
+  },
+  "bugs": {
+    "url": "https://github.com/rbouschery/ticqex/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^25",
+    "typescript": "^5",
+    "vitest": "^4.1.8"
+  }
+}

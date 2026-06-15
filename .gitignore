@@ -27,6 +27,10 @@ yarn-error.log*
 # misc
 .DS_Store
 *.pem
+*.tgz
+
+# workspace packages (built before publish)
+packages/*/dist/
 
 # vercel
 .vercel
