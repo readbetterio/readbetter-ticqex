@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api-client";
 import {
   ticketSummaryQueryKey,
 } from "@/hooks/use-ticket-summary";
+import { invalidateTicketActivity } from "@/hooks/use-activity";
 import { ticketTagsQueryKey } from "@/hooks/use-ticket-reference-data";
 import { isTaskSummary, type TicketSummary } from "@/types/tickets";
 
@@ -133,6 +134,7 @@ export function useTicketModalMetadataSave({
         await queryClient.invalidateQueries({ queryKey: ticketTagsQueryKey });
       }
       touchRecentTags(tagNames);
+      await invalidateTicketActivity(queryClient, ticketId);
       onBoardChange();
     } catch (e) {
       if (previousSummary !== undefined) {
@@ -184,6 +186,7 @@ export function useTicketModalMetadataSave({
         body: JSON.stringify({ custom_fields: customFieldPatch }),
       });
       onCustomFieldsSaved();
+      await invalidateTicketActivity(queryClient, ticketId);
       onBoardChange();
     } catch (e) {
       if (previousSummary !== undefined) {

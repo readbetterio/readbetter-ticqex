@@ -18,6 +18,14 @@ import {
 } from "@server/services/outbound-replies";
 import { loadReadMessageIds } from "@server/services/message-reads";
 import { touchTicket } from "@server/services/ticket-touch";
+import {
+  recordAgentReplyActivity,
+  recordInboundMessageActivity,
+  recordMessageDraftCreatedActivity,
+  recordMessageDraftDeletedActivity,
+  recordMessageDraftSentActivity,
+  recordMessageDraftUpdatedActivity,
+} from "@server/services/ticket-activity";
 import type { AuthContext } from "@server/middleware/auth";
 import type { MessageDbRow } from "@/types/database";
 
@@ -326,6 +334,14 @@ export async function createAgentReply(
     );
   }
 
+  await recordAgentReplyActivity({
+    ticketId,
+    messageId: message.id,
+    body: message.body,
+    channel: message.channel,
+    auth,
+  });
+
   return { message, ticket: ticketRow, shouldSendEmail };
 }
 
@@ -401,6 +417,13 @@ export async function createAgentDraft(
     );
   }
 
+  await recordMessageDraftCreatedActivity({
+    ticketId,
+    messageId: message.id,
+    body: message.body,
+    auth,
+  });
+
   return { message };
 }
 
@@ -435,8 +458,7 @@ export async function updateAgentDraft(
   },
   auth: AuthContext,
 ) {
-  void auth;
-  await loadDraftMessage(ticketId, messageId);
+  const draft = await loadDraftMessage(ticketId, messageId);
   const ticketRow = await loadMessageTicket(ticketId);
   const isEmailTicket = canSendEmail(ticketRow);
 
@@ -497,6 +519,15 @@ export async function updateAgentDraft(
   }
 
   await touchTicket(ticketId);
+
+  await recordMessageDraftUpdatedActivity({
+    ticketId,
+    messageId: message.id,
+    previousBody: draft.body,
+    body: message.body,
+    auth,
+  });
+
   return { message };
 }
 
@@ -505,8 +536,7 @@ export async function deleteAgentDraft(
   messageId: string,
   auth: AuthContext,
 ) {
-  void auth;
-  await loadDraftMessage(ticketId, messageId);
+  const draft = await loadDraftMessage(ticketId, messageId);
 
   const db = createAdminClient();
   const { error } = await db
@@ -518,6 +548,14 @@ export async function deleteAgentDraft(
   if (error) throw ApiError.internal(error.message);
 
   await touchTicket(ticketId);
+
+  await recordMessageDraftDeletedActivity({
+    ticketId,
+    messageId,
+    body: draft.body,
+    auth,
+  });
+
   return { deleted: true as const };
 }
 
@@ -590,6 +628,15 @@ export async function sendAgentDraft(
   if (error) throw ApiError.internal(error.message);
 
   await touchTicket(ticketId);
+
+  await recordMessageDraftSentActivity({
+    ticketId,
+    messageId: message.id,
+    body: message.body,
+    emailSubject: message.email_subject,
+    auth,
+  });
+
   return { message, shouldSendEmail: true };
 }
 
@@ -628,6 +675,16 @@ export async function createContactMessage(
     emailCc: input.emailCc ?? [],
     emailSubject: input.emailSubject ?? null,
     emailBodyHtml: input.emailBodyHtml ?? null,
+  });
+
+  await recordInboundMessageActivity({
+    ticketId,
+    messageId: message.id,
+    body: message.body,
+    authorId: input.authorId,
+    channel: input.channel,
+    emailFrom: input.emailFrom,
+    emailSubject: input.emailSubject,
   });
 
   return { message };

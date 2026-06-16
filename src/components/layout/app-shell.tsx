@@ -6,15 +6,22 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { UserMenu } from "@/components/layout/user-menu";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/lib/utils";
 
-const nav = [
+const baseNav = [
   { href: "/board", label: "Board" },
   { href: "/settings", label: "Settings" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useCurrentUser();
+
+  const nav =
+    user?.role === "admin"
+      ? [...baseNav, { href: "/activity", label: "Activity" }]
+      : baseNav;
 
   return (
     <div className="fixed inset-0 flex flex-col overflow-hidden bg-background">

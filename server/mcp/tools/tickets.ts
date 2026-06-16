@@ -134,9 +134,7 @@ export function registerTicketTools(server: McpServer) {
     },
     async ({ id, patch }, auth) =>
       toolResult(
-        await updateTicket(id, parseBody(updateTicketSchema, patch), {
-          userId: auth.userId,
-        }),
+        await updateTicket(id, parseBody(updateTicketSchema, patch), { auth }),
       ),
   );
 
@@ -148,8 +146,8 @@ export function registerTicketTools(server: McpServer) {
       description: "Delete a ticket.",
       inputSchema: { id: uuid },
     },
-    async ({ id }) => {
-      await deleteTicket(id);
+    async ({ id }, auth) => {
+      await deleteTicket(id, auth);
       return toolResult({ deleted: true });
     },
   );

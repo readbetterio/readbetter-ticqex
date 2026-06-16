@@ -132,6 +132,7 @@ export function registerBoardTools(server: McpServer) {
         await moveTicketOnBoard(
           auth.userId,
           parseBody(boardMoveTicketSchema, input),
+          auth,
         ),
       ),
   );

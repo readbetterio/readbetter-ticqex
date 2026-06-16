@@ -68,7 +68,9 @@ import {
   useTicketUsers,
 } from "@/hooks/use-ticket-reference-data";
 import { useTicketCommentCount } from "@/hooks/use-ticket-comments";
+import { invalidateTicketActivity } from "@/hooks/use-activity";
 import { TicketCommentsSection } from "./ticket-comments-section";
+import { TicketActivitySection } from "./ticket-activity-section";
 import { TicketConversationSection } from "./ticket-conversation-section";
 import { TicketContactSection } from "./ticket-contact-section";
 import { TicketDetailsSection } from "./ticket-details-section";
@@ -327,6 +329,7 @@ export function TicketModal({
           void queryClient.invalidateQueries({
             queryKey: ticketSummaryQueryKey(ticketId),
           });
+          void invalidateTicketActivity(queryClient, ticketId);
         } catch (e) {
           optimisticStatusRef.current = rollbackStatusId;
           setOptimisticStatusId(rollbackStatusId);
@@ -634,6 +637,7 @@ export function TicketModal({
               Comments
               {commentCount !== null ? ` (${commentCount})` : null}
             </TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
           <TabsContent
@@ -767,6 +771,13 @@ export function TicketModal({
                 threadOrder={commentThreadOrder}
               />
             )}
+          </TabsContent>
+
+          <TabsContent
+            value="activity"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <TicketActivitySection ticketId={ticketId} />
           </TabsContent>
         </Tabs>
 

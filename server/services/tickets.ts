@@ -31,6 +31,14 @@ import {
 } from "@server/services/board-lane-orders";
 import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
 import { touchTicket } from "@server/services/ticket-touch";
+import {
+  deriveTicketUpdateDiffScope,
+  diffTicketActivity,
+  loadTicketUpdateActivitySnapshot,
+  recordTicketCreatedActivity,
+  recordTicketDeletedActivity,
+  recordTicketUpdatedActivity,
+} from "@server/services/ticket-activity";
 import type { AuthContext } from "@server/middleware/auth";
 import type { createTicketSchema } from "@server/lib/validation/schemas";
 import type { z } from "zod";
@@ -266,8 +274,7 @@ export async function createTicket(input: CreateTicketInput, auth: AuthContext) 
   return createTaskTicket(input, auth);
 }
 
-async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task" }>, _auth: AuthContext) {
-  void _auth;
+async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task" }>, auth: AuthContext) {
   const db = createAdminClient();
   const statusId =
     input.status_id?.trim() || (await getDefaultStatusId());
@@ -297,14 +304,18 @@ async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task"
   if (input.tags?.length) await setTicketTags(ticket.id, input.tags);
   await setCustomFields(db, "ticket", ticket.id, input.custom_fields);
 
+  await recordTicketCreatedActivity(
+    { id: ticket.id, title: ticket.title, kind: ticket.kind },
+    auth,
+  );
+
   return getTicket(ticket.id);
 }
 
 async function createConversationTicket(
   input: Extract<CreateTicketInput, { kind: "conversation" }>,
-  _auth: AuthContext,
+  auth: AuthContext,
 ) {
-  void _auth;
   const db = createAdminClient();
   const contactAddress = input.contact_address.trim().toLowerCase();
   const contact = await findOrCreateContact(contactAddress);
@@ -329,7 +340,13 @@ async function createConversationTicket(
   if (input.tags?.length) await setTicketTags(ticketId, input.tags);
   await setCustomFields(db, "ticket", ticketId, input.custom_fields);
 
-  return getTicket(ticketId);
+  const created = await getTicket(ticketId);
+  await recordTicketCreatedActivity(
+    { id: created.id, title: created.title, kind: created.kind },
+    auth,
+  );
+
+  return created;
 }
 
 export async function updateTicket(
@@ -342,13 +359,21 @@ export async function updateTicket(
     tags?: string[];
     custom_fields?: Record<string, unknown>;
   },
-  options?: { userId?: string; boardMoveHandled?: boolean },
+  options?: { auth?: AuthContext; boardMoveHandled?: boolean },
 ) {
   const ticket = await loadTicketRow(id);
 
   if (input.body !== undefined && !isTaskTicket(ticket)) {
     throw ApiError.badRequest("Only tickets support a description body");
   }
+
+  const shouldRecordActivity = Boolean(options?.auth);
+  const diffScope = shouldRecordActivity
+    ? deriveTicketUpdateDiffScope(input)
+    : null;
+  const beforeSnapshot = shouldRecordActivity
+    ? await loadTicketUpdateActivitySnapshot(id)
+    : null;
 
   const previousStatusId = ticket.status_id;
   const db = createAdminClient();
@@ -390,25 +415,37 @@ export async function updateTicket(
   }
 
   if (
-    options?.userId &&
+    options?.auth?.userId &&
     !options.boardMoveHandled &&
     input.status_id !== undefined &&
     previousStatusId &&
     previousStatusId !== input.status_id
   ) {
     await syncTicketLaneOrderOnStatusChange(
-      options.userId,
+      options.auth.userId,
       id,
       previousStatusId,
       input.status_id,
     );
   }
 
+  if (shouldRecordActivity && beforeSnapshot && diffScope && options?.auth) {
+    const afterSnapshot = await loadTicketUpdateActivitySnapshot(id);
+    const changes = diffTicketActivity(beforeSnapshot, afterSnapshot, diffScope);
+    if (changes.length) {
+      await recordTicketUpdatedActivity(
+        { ...ticket, title: afterSnapshot.title },
+        changes,
+        options.auth,
+      );
+    }
+  }
+
   return getTicket(id);
 }
 
-export async function deleteTicket(id: string) {
-  await loadTicketRow(id);
+export async function deleteTicket(id: string, auth?: AuthContext) {
+  const ticket = await loadTicketRow(id);
 
   const db = createAdminClient();
 
@@ -423,4 +460,8 @@ export async function deleteTicket(id: string) {
 
   const { error } = await db.from("tickets").delete().eq("id", id);
   if (error) throw ApiError.internal(error.message);
+
+  if (auth) {
+    await recordTicketDeletedActivity(ticket, auth);
+  }
 }

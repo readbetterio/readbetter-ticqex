@@ -9,6 +9,20 @@
 import "dotenv/config";
 import { createHash } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_ACTOR_TYPES,
+  ACTIVITY_OUTCOMES,
+  ACTIVITY_SOURCES,
+  type ActivityAction,
+  type ActivityActorType,
+  type ActivitySource,
+} from "../shared/activity/actions";
+import type {
+  ActivityActorSnapshot,
+  ActivityChange,
+  TicketActivitySnapshot,
+} from "../shared/activity/types";
 
 const LEGACY_DEMO_TITLE_PREFIX = "Cedar CRM:";
 const DEMO_AGENT_KEY_NAME = "Cedar CRM Demo Agent";
@@ -92,6 +106,39 @@ type DemoTicket = {
   body?: string;
   messages?: DemoMessage[];
   agent_comment: string;
+};
+
+type ActivityEventInsert = {
+  occurred_at: string;
+  action: ActivityAction;
+  outcome: typeof ACTIVITY_OUTCOMES.SUCCEEDED;
+  source: ActivitySource;
+  target_type: string | null;
+  target_id: string | null;
+  ticket_id: string;
+  ticket_snapshot: TicketActivitySnapshot;
+  actor_type: ActivityActorType;
+  actor_user_id: string | null;
+  api_key_id: string | null;
+  actor_snapshot: ActivityActorSnapshot;
+  request_id: string | null;
+  request_method: string | null;
+  request_path: string | null;
+  operation: string | null;
+  status_code: number | null;
+  summary: string;
+  changes: ActivityChange[];
+  metadata: Record<string, unknown>;
+};
+
+type SeededMessage = {
+  id: string;
+  body: string;
+  author_type: MessageAuthor;
+  channel: MessageChannel;
+  email_from: string | null;
+  email_subject: string | null;
+  created_at: string;
 };
 
 const DEMO_TAGS = [
@@ -515,6 +562,49 @@ function timestamp(ticketIndex: number, minutesAfterOpen: number): string {
     .toISOString();
 }
 
+function messagePreview(body: string, maxLength = 120): string {
+  const normalized = body.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function sourceForChannel(channel: MessageChannel): ActivitySource {
+  switch (channel) {
+    case "email":
+      return ACTIVITY_SOURCES.EMAIL;
+    case "api":
+      return ACTIVITY_SOURCES.API;
+    case "admin":
+      return ACTIVITY_SOURCES.UI;
+    default: {
+      const exhaustive: never = channel;
+      return exhaustive;
+    }
+  }
+}
+
+function contactActorSnapshot(email: string): ActivityActorSnapshot {
+  return {
+    label: email,
+    email,
+  };
+}
+
+function apiKeyActorSnapshot(): ActivityActorSnapshot {
+  return {
+    label: DEMO_AGENT_KEY_NAME,
+    api_key_name: DEMO_AGENT_KEY_NAME,
+  };
+}
+
+function ticketSnapshot(ticketId: string, ticket: DemoTicket): TicketActivitySnapshot {
+  return {
+    id: ticketId,
+    title: subjectFor(ticket),
+    kind: ticket.kind,
+  };
+}
+
 function subjectFor(ticket: DemoTicket): string {
   return ticket.title;
 }
@@ -681,6 +771,234 @@ async function insertCustomFieldValues(
   }
 }
 
+function statusMoveMinute(ticket: DemoTicket): number | null {
+  if (ticket.lane === "Open") return null;
+  const latestMessageMinute = Math.max(
+    0,
+    ...(ticket.messages ?? []).map((message) => message.minutes_after_open),
+  );
+  return Math.max(4, latestMessageMinute + 2);
+}
+
+function latestSeededActivityMinute(ticket: DemoTicket): number {
+  return Math.max(
+    1,
+    2,
+    statusMoveMinute(ticket) ?? 0,
+    ...(ticket.messages ?? []).map((message) => message.minutes_after_open),
+  );
+}
+
+function compactMetadata(
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  if (!metadata) return {};
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([, value]) => value !== undefined),
+  );
+}
+
+function buildBaseActivity(input: {
+  ticketId: string;
+  ticket: DemoTicket;
+  occurredAt: string;
+  action: ActivityAction;
+  source: ActivitySource;
+  actorType: ActivityActorType;
+  actorUserId?: string | null;
+  apiKeyId?: string | null;
+  actorSnapshot: ActivityActorSnapshot;
+  summary: string;
+  targetType?: string | null;
+  targetId?: string | null;
+  changes?: ActivityChange[];
+  metadata?: Record<string, unknown>;
+}): ActivityEventInsert {
+  return {
+    occurred_at: input.occurredAt,
+    action: input.action,
+    outcome: ACTIVITY_OUTCOMES.SUCCEEDED,
+    source: input.source,
+    target_type: input.targetType ?? null,
+    target_id: input.targetId ?? null,
+    ticket_id: input.ticketId,
+    ticket_snapshot: ticketSnapshot(input.ticketId, input.ticket),
+    actor_type: input.actorType,
+    actor_user_id: input.actorUserId ?? null,
+    api_key_id: input.apiKeyId ?? null,
+    actor_snapshot: input.actorSnapshot,
+    request_id: null,
+    request_method: null,
+    request_path: null,
+    operation: null,
+    status_code: null,
+    summary: input.summary,
+    changes: input.changes ?? [],
+    metadata: compactMetadata(input.metadata),
+  };
+}
+
+function buildTicketCreatedActivity(input: {
+  ticketId: string;
+  ticket: DemoTicket;
+  contactId: string;
+  demoApiKeyId: string;
+  occurredAt: string;
+}): ActivityEventInsert {
+  const source =
+    input.ticket.origin === "email"
+      ? ACTIVITY_SOURCES.EMAIL
+      : input.ticket.origin === "api"
+        ? ACTIVITY_SOURCES.API
+        : ACTIVITY_SOURCES.UI;
+  const isContactOpened = input.ticket.origin === "email";
+
+  return buildBaseActivity({
+    ticketId: input.ticketId,
+    ticket: input.ticket,
+    occurredAt: input.occurredAt,
+    action: ACTIVITY_ACTIONS.TICKET_CREATED,
+    source,
+    actorType: isContactOpened
+      ? ACTIVITY_ACTOR_TYPES.CONTACT
+      : ACTIVITY_ACTOR_TYPES.API_KEY,
+    apiKeyId: isContactOpened ? null : input.demoApiKeyId,
+    actorSnapshot: isContactOpened
+      ? contactActorSnapshot(input.ticket.contact)
+      : apiKeyActorSnapshot(),
+    summary: `Created ticket "${subjectFor(input.ticket)}"`,
+    targetType: "ticket",
+    targetId: input.ticketId,
+    metadata: {
+      kind: input.ticket.kind,
+      origin: input.ticket.origin,
+      contact_id: input.contactId,
+      contact: input.ticket.contact,
+      tags: input.ticket.tags,
+      ticket_fields: input.ticket.ticket_fields,
+    },
+  });
+}
+
+function buildMessageActivity(input: {
+  ticketId: string;
+  ticket: DemoTicket;
+  message: SeededMessage;
+  demoApiKeyId: string;
+}): ActivityEventInsert {
+  if (input.message.author_type === "agent") {
+    return buildBaseActivity({
+      ticketId: input.ticketId,
+      ticket: input.ticket,
+      occurredAt: input.message.created_at,
+      action: ACTIVITY_ACTIONS.MESSAGE_CREATED,
+      source: sourceForChannel(input.message.channel),
+      actorType: ACTIVITY_ACTOR_TYPES.API_KEY,
+      apiKeyId: input.demoApiKeyId,
+      actorSnapshot: apiKeyActorSnapshot(),
+      summary: "Sent agent reply",
+      targetType: "message",
+      targetId: input.message.id,
+      metadata: {
+        channel: input.message.channel,
+        body_preview: messagePreview(input.message.body),
+        email_subject: input.message.email_subject,
+      },
+    });
+  }
+
+  const isContact = input.message.author_type === "contact";
+  return buildBaseActivity({
+    ticketId: input.ticketId,
+    ticket: input.ticket,
+    occurredAt: input.message.created_at,
+    action: ACTIVITY_ACTIONS.MESSAGE_INBOUND,
+    source: sourceForChannel(input.message.channel),
+    actorType: isContact
+      ? ACTIVITY_ACTOR_TYPES.CONTACT
+      : ACTIVITY_ACTOR_TYPES.SYSTEM,
+    actorSnapshot: isContact
+      ? contactActorSnapshot(input.ticket.contact)
+      : { label: "Cedar CRM monitor" },
+    summary: "Received inbound message",
+    targetType: "message",
+    targetId: input.message.id,
+    metadata: {
+      channel: input.message.channel,
+      body_preview: messagePreview(input.message.body),
+      contact: isContact ? input.ticket.contact : undefined,
+      email_from: input.message.email_from,
+      email_subject: input.message.email_subject,
+    },
+  });
+}
+
+function buildCommentActivity(input: {
+  ticketId: string;
+  ticket: DemoTicket;
+  commentId: string;
+  demoApiKeyId: string;
+  occurredAt: string;
+}): ActivityEventInsert {
+  return buildBaseActivity({
+    ticketId: input.ticketId,
+    ticket: input.ticket,
+    occurredAt: input.occurredAt,
+    action: ACTIVITY_ACTIONS.COMMENT_CREATED,
+    source: ACTIVITY_SOURCES.API,
+    actorType: ACTIVITY_ACTOR_TYPES.API_KEY,
+    apiKeyId: input.demoApiKeyId,
+    actorSnapshot: apiKeyActorSnapshot(),
+    summary: "Added comment on ticket",
+    targetType: "comment",
+    targetId: input.commentId,
+    metadata: {
+      body_preview: messagePreview(input.ticket.agent_comment),
+    },
+  });
+}
+
+function buildStatusActivity(input: {
+  ticketId: string;
+  ticket: DemoTicket;
+  demoApiKeyId: string;
+  occurredAt: string;
+}): ActivityEventInsert | null {
+  if (input.ticket.lane === "Open") return null;
+
+  return buildBaseActivity({
+    ticketId: input.ticketId,
+    ticket: input.ticket,
+    occurredAt: input.occurredAt,
+    action: ACTIVITY_ACTIONS.TICKET_STATUS_CHANGED,
+    source: ACTIVITY_SOURCES.API,
+    actorType: ACTIVITY_ACTOR_TYPES.API_KEY,
+    apiKeyId: input.demoApiKeyId,
+    actorSnapshot: apiKeyActorSnapshot(),
+    summary: `Moved ticket "${subjectFor(input.ticket)}" from Open to ${input.ticket.lane}`,
+    targetType: "ticket",
+    targetId: input.ticketId,
+    changes: [
+      {
+        field: "status_id",
+        label: "Status",
+        from: "Open",
+        to: input.ticket.lane,
+      },
+    ],
+  });
+}
+
+async function insertActivityEvents(db: DbClient, rows: ActivityEventInsert[]) {
+  if (rows.length === 0) return;
+
+  const { error } = await db.from("activity_events").insert(rows);
+  if (error) {
+    console.error("Failed to create activity events:", error.message);
+    process.exit(1);
+  }
+}
+
 async function main() {
   const reset = process.argv.includes("--reset");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
@@ -729,6 +1047,18 @@ async function main() {
       ),
     ];
     if (existingTicketIds.length) {
+      const { error: deleteActivityError } = await db
+        .from("activity_events")
+        .delete()
+        .in("ticket_id", existingTicketIds);
+      if (deleteActivityError) {
+        console.error(
+          "Failed to delete prior Cedar CRM activity:",
+          deleteActivityError.message,
+        );
+        process.exit(1);
+      }
+
       await db
         .from("custom_field_values")
         .delete()
@@ -953,10 +1283,7 @@ async function main() {
 
   for (const [index, ticket] of DEMO_TICKETS.entries()) {
     const createdAt = timestamp(index, 0);
-    const updatedAt = timestamp(
-      index,
-      Math.max(1, ...(ticket.messages ?? []).map((message) => message.minutes_after_open)),
-    );
+    const updatedAt = timestamp(index, latestSeededActivityMinute(ticket));
 
     const { data: createdTicket, error: ticketError } = await db
       .from("tickets")
@@ -980,6 +1307,12 @@ async function main() {
     }
 
     const ticketId = createdTicket.id as string;
+    const contactId = contactIds.get(ticket.contact);
+    if (!contactId) {
+      console.error(`Missing contact for ticket ${ticket.title}`);
+      process.exit(1);
+    }
+
     await insertCustomFieldValues(db, "ticket", ticketId, fieldIds, ticket.ticket_fields);
 
     const ticketTagRows = ticket.tags.map((tagName) => ({
@@ -1021,26 +1354,76 @@ async function main() {
           : null,
     }));
 
+    let createdMessages: SeededMessage[] = [];
     if (messages.length) {
-      const { error: messagesError } = await db.from("messages").insert(messages);
+      const { data, error: messagesError } = await db
+        .from("messages")
+        .insert(messages)
+        .select("id, body, author_type, channel, email_from, email_subject, created_at");
       if (messagesError) {
         console.error(`Failed to create messages for ${ticket.title}:`, messagesError.message);
         process.exit(1);
       }
+      createdMessages = (data ?? []) as SeededMessage[];
     }
 
-    const { error: commentError } = await db.from("ticket_comments").insert({
-      ticket_id: ticketId,
-      body: ticket.agent_comment,
-      author_type: "api_key",
-      author_id: null,
-      api_key_id: demoApiKeyId,
-      created_at: timestamp(index, 2),
-    });
-    if (commentError) {
-      console.error(`Failed to create agent comment for ${ticket.title}:`, commentError.message);
+    const commentCreatedAt = timestamp(index, 2);
+    const { data: createdComment, error: commentError } = await db
+      .from("ticket_comments")
+      .insert({
+        ticket_id: ticketId,
+        body: ticket.agent_comment,
+        author_type: "api_key",
+        author_id: null,
+        api_key_id: demoApiKeyId,
+        created_at: commentCreatedAt,
+      })
+      .select("id")
+      .single();
+    if (commentError || !createdComment) {
+      console.error(
+        `Failed to create agent comment for ${ticket.title}:`,
+        commentError?.message,
+      );
       process.exit(1);
     }
+
+    const activityRows: ActivityEventInsert[] = [
+      buildTicketCreatedActivity({
+        ticketId,
+        ticket,
+        contactId,
+        demoApiKeyId,
+        occurredAt: createdAt,
+      }),
+      ...createdMessages.map((message) =>
+        buildMessageActivity({
+          ticketId,
+          ticket,
+          message,
+          demoApiKeyId,
+        }),
+      ),
+      buildCommentActivity({
+        ticketId,
+        ticket,
+        commentId: createdComment.id as string,
+        demoApiKeyId,
+        occurredAt: commentCreatedAt,
+      }),
+    ];
+    const statusActivityMinute = statusMoveMinute(ticket);
+    const statusActivity =
+      statusActivityMinute === null
+        ? null
+        : buildStatusActivity({
+            ticketId,
+            ticket,
+            demoApiKeyId,
+            occurredAt: timestamp(index, statusActivityMinute),
+          });
+    if (statusActivity) activityRows.push(statusActivity);
+    await insertActivityEvents(db, activityRows);
 
     laneCounts.set(ticket.lane, (laneCounts.get(ticket.lane) ?? 0) + 1);
   }
@@ -1052,6 +1435,7 @@ async function main() {
   console.log(`Custom fields: ${fieldDefinitions.length}`);
   console.log(`Tags: ${DEMO_TAGS.length}`);
   console.log(`Agent comments authored by API key: ${DEMO_AGENT_KEY_NAME}`);
+  console.log("Activity timeline: ticket creation, messages, comments, and lane moves");
 }
 
 main().catch((error) => {

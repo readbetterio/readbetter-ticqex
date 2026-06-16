@@ -2,6 +2,8 @@ import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
 import { setLaneOrder } from "@server/services/board-lane-orders";
+import { recordTicketStatusChangedActivity } from "@server/services/ticket-activity";
+import type { AuthContext } from "@server/middleware/auth";
 
 export type BoardMoveFilterContext = {
   source_visible_ticket_ids?: string[];
@@ -39,12 +41,13 @@ function removeOnlyLaneOrderOptions(ticketId: string) {
 export async function moveTicketOnBoard(
   userId: string,
   input: MoveTicketOnBoardInput,
+  auth?: AuthContext,
 ) {
   const db = createAdminClient();
 
   const { data: ticket, error: ticketError } = await db
     .from("tickets")
-    .select("id, status_id")
+    .select("id, status_id, title, kind")
     .eq("id", input.ticket_id)
     .maybeSingle();
 
@@ -71,6 +74,19 @@ export async function moveTicketOnBoard(
       .eq("id", input.ticket_id);
 
     if (statusError) throw ApiError.internal(statusError.message);
+
+    if (auth) {
+      await recordTicketStatusChangedActivity({
+        ticket: {
+          id: ticket.id as string,
+          title: ticket.title as string,
+          kind: ticket.kind as "task" | "conversation",
+        },
+        fromStatusId: actualFromStatusId,
+        toStatusId: input.to_status_id,
+        auth,
+      });
+    }
   }
 
   const fc = input.filter_context;

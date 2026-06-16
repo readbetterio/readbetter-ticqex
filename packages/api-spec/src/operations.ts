@@ -450,6 +450,37 @@ export const OPERATION_CATALOG: OperationDefinition[] = [
     queryParams: [],
     admin: true,
   },
+  {
+    name: "ticqex_list_activity",
+    method: "GET",
+    pathTemplate: "/activity",
+    pathParams: [],
+    queryParams: [
+      "page",
+      "per_page",
+      "actor_user_id",
+      "api_key_id",
+      "source",
+      "action",
+      "outcome",
+      "target_type",
+      "operation",
+      "request_method",
+      "request_path",
+      "status_code",
+      "occurred_after",
+      "occurred_before",
+      "hide_self_referential",
+    ],
+    admin: true,
+  },
+  {
+    name: "ticqex_list_ticket_activity",
+    method: "GET",
+    pathTemplate: "/tickets/:ticket_id/activity",
+    pathParams: ["ticket_id"],
+    queryParams: ["page", "per_page"],
+  },
 ];
 
 export const MCP_TOOL_NAMES = OPERATION_CATALOG.filter((op) => !op.admin).map(

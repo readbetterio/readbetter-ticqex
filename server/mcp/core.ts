@@ -2,6 +2,17 @@ import { z } from "zod";
 import type { AuthContext } from "@server/middleware/auth";
 import { requireAdmin } from "@server/middleware/auth";
 import { ApiError } from "@server/lib/errors";
+import {
+  createActivityRequestStore,
+  runWithActivityRequestContext,
+} from "@server/lib/activity-request-context";
+import {
+  createActivityRequestId,
+  recordMcpToolActivity,
+} from "@server/services/activity";
+import {
+  ACTIVITY_OUTCOMES,
+} from "@shared/activity/actions";
 import type { McpServer, ToolCallback } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type {
   ShapeOutput,
@@ -81,7 +92,47 @@ export function registerAuthedTool<Schema extends ZodRawShapeCompat>(
   const callback = (async (input: ShapeOutput<Schema>, extra: ToolExtra) => {
     const auth = authFromExtra(extra);
     if (admin) requireAdmin(auth);
-    return handler(input, auth, extra);
+
+    const requestId = createActivityRequestId();
+    const requestStore = createActivityRequestStore({
+      requestId,
+      requestMethod: "MCP",
+      requestPath: `/api/mcp/tools/${name}`,
+      operation: name,
+      source: "mcp",
+      auth,
+    });
+
+    return runWithActivityRequestContext(
+      requestStore,
+      async () => {
+        try {
+          const result = await handler(input, auth, extra);
+
+          await recordMcpToolActivity({
+            name,
+            outcome: ACTIVITY_OUTCOMES.SUCCEEDED,
+            auth,
+            statusCode: 200,
+          });
+
+          return result;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "MCP tool failed";
+
+          await recordMcpToolActivity({
+            name,
+            outcome: ACTIVITY_OUTCOMES.FAILED,
+            auth,
+            statusCode: error instanceof ApiError ? error.status : 500,
+            errorMessage: message,
+          });
+
+          throw error;
+        }
+      },
+    );
   }) as ToolCallback<Schema>;
 
   server.registerTool(name, toolMetadata, callback);

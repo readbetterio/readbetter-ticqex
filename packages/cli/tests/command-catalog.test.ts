@@ -18,11 +18,12 @@ describe("command catalog", () => {
     }
   });
 
-  it("lists REST-only admin api-key operations separately", () => {
+  it("lists REST-only admin operations separately", () => {
     expect(REST_ONLY_ADMIN_OPERATIONS).toEqual([
       "ticqex_list_api_keys",
       "ticqex_create_api_key",
       "ticqex_revoke_api_key",
+      "ticqex_list_activity",
     ]);
   });
 

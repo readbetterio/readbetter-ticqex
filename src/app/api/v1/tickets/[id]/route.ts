@@ -21,14 +21,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   return withAuth(request, async (auth) => {
     const { id } = await params;
     const body = parseBody(updateTicketSchema, await parseJsonBody(request));
-    return jsonData(await updateTicket(id, body, { userId: auth.userId }));
+    return jsonData(await updateTicket(id, body, { auth }));
   });
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
-  return withAuth(request, async () => {
+  return withAuth(request, async (auth) => {
     const { id } = await params;
-    await deleteTicket(id);
+    await deleteTicket(id, auth);
     return jsonData({ deleted: true });
   });
 }

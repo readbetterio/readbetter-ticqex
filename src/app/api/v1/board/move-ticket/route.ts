@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
         target_ticket_ids: body.target_ticket_ids,
         source_ticket_ids: body.source_ticket_ids,
         filter_context: body.filter_context,
-      }),
+      }, auth),
     );
   });
 }

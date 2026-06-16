@@ -1,9 +1,18 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { parsePagination } from "@server/lib/utils";
+import {
+  loadApiKeyActorSnapshots,
+  loadStaffActorSnapshots,
+} from "@server/domain/actor-snapshot";
 import { loadTicketRow } from "@server/domain/ticket";
 import { getSettings } from "@server/services/settings";
 import { touchTicket } from "@server/services/ticket-touch";
+import {
+  recordCommentCreatedActivity,
+  recordCommentDeletedActivity,
+  recordCommentUpdatedActivity,
+} from "@server/services/ticket-activity";
 import type { AuthContext } from "@server/middleware/auth";
 import type { CommentDbRow } from "@/types/database";
 
@@ -51,45 +60,7 @@ async function loadCommentOrder(): Promise<CommentOrder> {
   return order === "newest_first" ? "newest_first" : "oldest_first";
 }
 
-async function loadApiKeyNames(
-  apiKeyIds: string[],
-): Promise<Map<string, { name: string; revoked_at: string | null }>> {
-  const map = new Map<string, { name: string; revoked_at: string | null }>();
-  if (!apiKeyIds.length) return map;
-
-  const db = createAdminClient();
-  const { data, error } = await db
-    .from("api_keys")
-    .select("id, name, revoked_at")
-    .in("id", apiKeyIds);
-  if (error) throw ApiError.internal(error.message);
-
-  for (const row of data ?? []) {
-    map.set(row.id, { name: row.name, revoked_at: row.revoked_at });
-  }
-
-  return map;
-}
-
 type AgentAuthor = { username: string; email: string };
-
-async function loadAgentAuthors(agentIds: string[]): Promise<Map<string, AgentAuthor>> {
-  const map = new Map<string, AgentAuthor>();
-  if (!agentIds.length) return map;
-
-  const db = createAdminClient();
-  const { data, error } = await db
-    .from("users")
-    .select("id, username, email")
-    .in("id", agentIds);
-  if (error) throw ApiError.internal(error.message);
-
-  for (const row of data ?? []) {
-    map.set(row.id, { username: row.username, email: row.email });
-  }
-
-  return map;
-}
 
 export function resolveCommentAuthorLabel(
   comment: Pick<CommentDbRow, "author_type" | "author_id" | "api_key_id">,
@@ -152,8 +123,8 @@ export async function enrichComments(
   ];
 
   const [agentAuthors, apiKeyNames] = await Promise.all([
-    loadAgentAuthors(agentIds),
-    loadApiKeyNames(apiKeyIds),
+    loadStaffActorSnapshots(agentIds),
+    loadApiKeyActorSnapshots(apiKeyIds),
   ]);
 
   return rows.map((row) => ({
@@ -239,6 +210,14 @@ export async function createTicketComment(
   await touchTicket(ticketId);
 
   const [comment] = await enrichComments([data], auth);
+
+  await recordCommentCreatedActivity({
+    ticketId,
+    commentId: comment.id,
+    body: comment.body,
+    auth,
+  });
+
   return comment;
 }
 
@@ -250,7 +229,6 @@ export async function updateTicketComment(
 ) {
   const existing = await loadCommentForTicket(ticketId, commentId);
   assertCanManageTicketComment(existing, auth);
-
   const db = createAdminClient();
   const { data, error } = await db
     .from("ticket_comments")
@@ -264,6 +242,15 @@ export async function updateTicketComment(
   await touchTicket(ticketId);
 
   const [comment] = await enrichComments([data], auth);
+
+  await recordCommentUpdatedActivity({
+    ticketId,
+    commentId: comment.id,
+    previousBody: existing.body,
+    body: comment.body,
+    auth,
+  });
+
   return comment;
 }
 
@@ -284,5 +271,13 @@ export async function deleteTicketComment(
   if (error) throw ApiError.internal(error.message);
 
   await touchTicket(ticketId);
+
+  await recordCommentDeletedActivity({
+    ticketId,
+    commentId,
+    body: existing.body,
+    auth,
+  });
+
   return { deleted: true as const };
 }
