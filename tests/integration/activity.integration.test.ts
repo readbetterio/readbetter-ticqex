@@ -89,6 +89,48 @@ async function findLatestFailedEvent(filters: {
   });
 }
 
+async function findSucceededRequestEventsSince(input: {
+  since: string;
+  request_path: string;
+  request_method?: string;
+  actor_user_id?: string;
+  api_key_id?: string;
+}) {
+  const result = await listActivityEvents(
+    new URLSearchParams({
+      page: "1",
+      per_page: "25",
+      outcome: "succeeded",
+      hide_self_referential: "false",
+      action: ACTIVITY_ACTIONS.API_REQUEST_SUCCEEDED,
+      request_path: input.request_path,
+      occurred_after: input.since,
+      ...(input.request_method
+        ? { request_method: input.request_method }
+        : {}),
+    }),
+    {
+      outcome: "succeeded",
+      action: ACTIVITY_ACTIONS.API_REQUEST_SUCCEEDED,
+      request_path: input.request_path,
+      request_method: input.request_method,
+      occurred_after: input.since,
+      hide_self_referential: false,
+    },
+  );
+
+  return result.events.filter((event) => {
+    if (event.occurred_at < input.since) return false;
+    if (input.actor_user_id && event.actor_user_id !== input.actor_user_id) {
+      return false;
+    }
+    if (input.api_key_id && event.api_key_id !== input.api_key_id) {
+      return false;
+    }
+    return true;
+  });
+}
+
 describeIntegration("activity log", () => {
   let ticketId: string | undefined;
   let apiKeyId: string | undefined;
@@ -179,6 +221,51 @@ describeIntegration("activity log", () => {
     );
     expect(apiEvent?.api_key_id).toBe(createdKey.id);
     expect(apiEvent?.actor_snapshot.api_key_name).toBe("Activity integration key");
+  });
+
+  it("does not record successful staff GET requests as api.request.succeeded", async () => {
+    const { token, userId } = await signInAsSeedAdmin();
+    const since = new Date().toISOString();
+
+    const response = await listTicketsRoute(
+      bearerRequest("/api/v1/tickets?page=1&per_page=1", token),
+    );
+    expect(response.status).toBe(200);
+
+    const succeededEvents = await findSucceededRequestEventsSince({
+      since,
+      request_path: "/api/v1/tickets",
+      request_method: "GET",
+      actor_user_id: userId,
+    });
+
+    expect(succeededEvents).toHaveLength(0);
+  });
+
+  it("records successful API-key GET requests as api.request.succeeded", async () => {
+    const { userId } = await signInAsSeedAdmin();
+    const createdKey = await createApiKey("Activity GET key", userId);
+    apiKeyId = createdKey.id;
+    const since = new Date().toISOString();
+
+    const response = await listTicketsRoute(
+      bearerRequest("/api/v1/tickets?page=1&per_page=1", createdKey.key),
+    );
+    expect(response.status).toBe(200);
+
+    const succeededEvents = await findSucceededRequestEventsSince({
+      since,
+      request_path: "/api/v1/tickets",
+      request_method: "GET",
+      api_key_id: createdKey.id,
+    });
+
+    expect(succeededEvents.length).toBeGreaterThanOrEqual(1);
+    const event = succeededEvents[0];
+    expect(event?.source).toBe("api");
+    expect(event?.actor_type).toBe("api_key");
+    expect(event?.api_key_id).toBe(createdKey.id);
+    if (event) activityEventIds.push(event.id);
   });
 
   it("records failed auth activity for invalid API keys", async () => {
