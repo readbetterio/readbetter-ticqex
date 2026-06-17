@@ -22,6 +22,31 @@ type RouteOptions = {
   admin?: boolean;
 };
 
+type RequestActivitySource = "ui" | "api";
+
+function resolveRequestSourceFromAuth(auth: AuthContext): RequestActivitySource {
+  switch (auth.type) {
+    case "api_key":
+      return "api";
+    case "staff":
+      return "ui";
+    default: {
+      const _exhaustive: never = auth.type;
+      return _exhaustive;
+    }
+  }
+}
+
+function shouldRecordSuccessfulRequestActivity(input: {
+  requestMethod: string;
+  source: RequestActivitySource;
+}): boolean {
+  if (input.source === "ui" && input.requestMethod.toUpperCase() === "GET") {
+    return false;
+  }
+  return true;
+}
+
 function getBearerToken(request: NextRequest): string | null {
   const header = request.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return null;
@@ -52,7 +77,6 @@ export async function withAuth(
   const requestMethod = request.method;
   const operation = resolveOperation(requestMethod, requestPath);
   const requestId = createActivityRequestId();
-  const hasBearer = Boolean(getBearerToken(request));
   const requestStore = createActivityRequestStore({
     requestId,
     requestMethod,
@@ -67,14 +91,21 @@ export async function withAuth(
 
   try {
     auth = await authenticateRequest(request);
+    const requestSource = resolveRequestSourceFromAuth(auth);
     requestStore.auth = auth;
-    requestStore.source = hasBearer ? "api" : "ui";
+    requestStore.source = requestSource;
     if (options.admin) requireAdmin(auth);
 
     return await runWithActivityRequestContext(requestStore, async () => {
       const response = await handler(auth!, request);
 
-      if (!recorder.hasDomainActivity()) {
+      if (
+        !recorder.hasDomainActivity() &&
+        shouldRecordSuccessfulRequestActivity({
+          requestMethod,
+          source: requestSource,
+        })
+      ) {
         await recordRequestActivity({
           outcome: ACTIVITY_OUTCOMES.SUCCEEDED,
           statusCode: response.status,
