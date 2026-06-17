@@ -3,6 +3,7 @@
 import {
   useInfiniteQuery,
   useMutation,
+  useQuery,
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ const OPTIMISTIC_COMMENT_ID_PREFIX = "optimistic-";
 
 type CommentMutationContext = {
   previous: InfiniteData<TicketCommentsListResponse> | undefined;
+  previousCount?: number;
   tempId?: string;
 };
 
@@ -33,24 +35,52 @@ export function ticketCommentsQueryKey(
   return [...ticketCommentsBaseQueryKey(ticketId), threadOrder] as const;
 }
 
-export function useTicketComments(
+export function ticketCommentCountQueryKey(ticketId: string) {
+  return [...ticketCommentsBaseQueryKey(ticketId), "count"] as const;
+}
+
+function ticketCommentsInfiniteQueryOptions(
   ticketId: string,
-  threadOrder: CommentThreadOrder = "oldest_first",
+  threadOrder: CommentThreadOrder,
 ) {
-  return useInfiniteQuery({
+  return {
     queryKey: ticketCommentsQueryKey(ticketId, threadOrder),
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam }: { pageParam: number }) => {
       const page = pageParam ?? 1;
       return apiFetchList<TicketComment>(
         `/api/v1/tickets/${ticketId}/comments?page=${page}&per_page=${COMMENTS_PER_PAGE}`,
       );
     },
-    initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
+    initialPageParam: 1 as const,
+    getNextPageParam: (lastPage: TicketCommentsListResponse) => {
       const { page, per_page, total } = lastPage.meta;
       return page * per_page < total ? page + 1 : undefined;
     },
+  };
+}
+
+export function useTicketComments(
+  ticketId: string,
+  threadOrder: CommentThreadOrder = "oldest_first",
+) {
+  return useInfiniteQuery(ticketCommentsInfiniteQueryOptions(ticketId, threadOrder));
+}
+
+export function useTicketCommentCount(ticketId: string) {
+  const query = useQuery({
+    queryKey: ticketCommentCountQueryKey(ticketId),
+    queryFn: async () => {
+      const response = await apiFetchList<TicketComment>(
+        `/api/v1/tickets/${ticketId}/comments?page=1&per_page=1`,
+      );
+      return response.meta.total;
+    },
   });
+
+  return {
+    count:
+      query.isPending || query.data === undefined ? null : query.data,
+  };
 }
 
 export function flattenTicketComments(
@@ -200,6 +230,30 @@ function rollbackCommentsCache(
   queryClient.setQueryData(queryKey, previous);
 }
 
+function adjustCommentCountCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  ticketId: string,
+  delta: number,
+) {
+  const countKey = ticketCommentCountQueryKey(ticketId);
+  queryClient.setQueryData<number>(countKey, (current) =>
+    current !== undefined ? Math.max(0, current + delta) : current,
+  );
+}
+
+function rollbackCommentCountCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  ticketId: string,
+  previousCount: number | undefined,
+) {
+  const countKey = ticketCommentCountQueryKey(ticketId);
+  if (previousCount === undefined) {
+    queryClient.removeQueries({ queryKey: countKey });
+    return;
+  }
+  queryClient.setQueryData(countKey, previousCount);
+}
+
 export function useTicketCommentMutations(
   ticketId: string,
   threadOrder: CommentThreadOrder = "oldest_first",
@@ -207,6 +261,7 @@ export function useTicketCommentMutations(
   const queryClient = useQueryClient();
   const { user } = useCurrentUser();
   const queryKey = ticketCommentsQueryKey(ticketId, threadOrder);
+  const countKey = ticketCommentCountQueryKey(ticketId);
 
   const createMutation = useMutation({
     mutationFn: (body: string) =>
@@ -216,11 +271,13 @@ export function useTicketCommentMutations(
       }),
     onMutate: async (body) => {
       await queryClient.cancelQueries({ queryKey });
+      await queryClient.cancelQueries({ queryKey: countKey });
 
       const previous =
         queryClient.getQueryData<InfiniteData<TicketCommentsListResponse>>(
           queryKey,
         );
+      const previousCount = queryClient.getQueryData<number>(countKey);
       const tempId = `${OPTIMISTIC_COMMENT_ID_PREFIX}${crypto.randomUUID()}`;
       const optimistic = buildOptimisticComment(ticketId, body, tempId, user);
 
@@ -241,11 +298,17 @@ export function useTicketCommentMutations(
           return insertCommentIntoCache(current, optimistic, threadOrder);
         },
       );
+      adjustCommentCountCache(queryClient, ticketId, 1);
 
-      return { previous, tempId } satisfies CommentMutationContext;
+      return { previous, previousCount, tempId } satisfies CommentMutationContext;
     },
     onError: (_error, _body, context) => {
       rollbackCommentsCache(queryClient, queryKey, context?.previous);
+      rollbackCommentCountCache(
+        queryClient,
+        ticketId,
+        context?.previousCount,
+      );
     },
     onSuccess: (created, _body, context) => {
       const tempId = context?.tempId;
@@ -312,11 +375,13 @@ export function useTicketCommentMutations(
       ),
     onMutate: async (commentId) => {
       await queryClient.cancelQueries({ queryKey });
+      await queryClient.cancelQueries({ queryKey: countKey });
 
       const previous =
         queryClient.getQueryData<InfiniteData<TicketCommentsListResponse>>(
           queryKey,
         );
+      const previousCount = queryClient.getQueryData<number>(countKey);
 
       queryClient.setQueryData<InfiniteData<TicketCommentsListResponse>>(
         queryKey,
@@ -325,11 +390,17 @@ export function useTicketCommentMutations(
           return removeCommentFromCache(current, commentId);
         },
       );
+      adjustCommentCountCache(queryClient, ticketId, -1);
 
-      return { previous } satisfies CommentMutationContext;
+      return { previous, previousCount } satisfies CommentMutationContext;
     },
     onError: (_error, _commentId, context) => {
       rollbackCommentsCache(queryClient, queryKey, context?.previous);
+      rollbackCommentCountCache(
+        queryClient,
+        ticketId,
+        context?.previousCount,
+      );
     },
   });
 

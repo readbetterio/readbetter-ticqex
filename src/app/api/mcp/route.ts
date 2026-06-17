@@ -2,6 +2,7 @@ import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { authenticateApiKeyToken } from "@server/middleware/auth";
 import { registerTicqexTools } from "@server/mcp/tools";
+import { recordFailedAuthActivity } from "@server/services/activity";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,21 @@ async function verifyApiKey(
   if (!bearerToken) return undefined;
 
   const auth = await authenticateApiKeyToken(bearerToken);
-  if (!auth) return undefined;
+  if (!auth) {
+    const invalidKeyPrefix =
+      bearerToken.startsWith("tq_live_") && bearerToken.length >= 12
+        ? bearerToken.slice(0, 12)
+        : null;
+    await recordFailedAuthActivity({
+      requestMethod: "POST",
+      requestPath: "/api/mcp",
+      operation: null,
+      statusCode: 401,
+      message: "Unauthorized MCP request",
+      invalidKeyPrefix,
+    });
+    return undefined;
+  }
 
   return {
     token: bearerToken,

@@ -40,6 +40,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { apiFetch, apiFetchText } from "@/lib/api-client";
 import { useTicketRealtime } from "@/hooks/use-board-realtime";
 import { useRecentTags } from "@/hooks/use-recent-tags";
@@ -61,7 +67,10 @@ import {
   useTicketThreadOrder,
   useTicketUsers,
 } from "@/hooks/use-ticket-reference-data";
+import { useTicketCommentCount } from "@/hooks/use-ticket-comments";
+import { invalidateTicketActivity } from "@/hooks/use-activity";
 import { TicketCommentsSection } from "./ticket-comments-section";
+import { TicketActivitySection } from "./ticket-activity-section";
 import { TicketConversationSection } from "./ticket-conversation-section";
 import { TicketContactSection } from "./ticket-contact-section";
 import { TicketDetailsSection } from "./ticket-details-section";
@@ -128,6 +137,7 @@ export function TicketModal({
   const allTags = tagsQuery.data ?? [];
   const threadOrder = threadOrderQuery.data ?? "oldest_first";
   const commentThreadOrder = commentThreadOrderQuery.data ?? "oldest_first";
+  const { count: commentCount } = useTicketCommentCount(ticketId);
   const showCopyContext = copyContextSettingsQuery.data?.visible ?? true;
 
   const { recentNames, touch: touchRecentTags } = useRecentTags();
@@ -319,6 +329,7 @@ export function TicketModal({
           void queryClient.invalidateQueries({
             queryKey: ticketSummaryQueryKey(ticketId),
           });
+          void invalidateTicketActivity(queryClient, ticketId);
         } catch (e) {
           optimisticStatusRef.current = rollbackStatusId;
           setOptimisticStatusId(rollbackStatusId);
@@ -484,13 +495,13 @@ export function TicketModal({
     <>
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        className="flex h-[95vh] max-h-[95vh] w-[90vw] max-w-[90vw] sm:max-w-[90vw] lg:max-w-5xl flex-col gap-0 overflow-hidden p-0"
         showCloseButton={false}
       >
-        <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border px-4 py-3.5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <DialogTitle
-              className="truncate"
+              className="min-h-7 truncate leading-7"
               title={displayTitle || undefined}
             >
               {headerLoading && !displayTitle ? (
@@ -613,130 +624,162 @@ export function TicketModal({
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-          {metaLoading ? <TicketMetaSkeleton /> : null}
+        <Tabs
+          defaultValue="details"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <TabsList
+            variant="line"
+            className="h-auto w-full shrink-0 justify-start rounded-none border-b border-border bg-transparent px-4 pt-2"
+          >
+            <TabsTrigger value="details">Details</TabsTrigger>
+            <TabsTrigger value="comments">
+              Comments
+              {commentCount !== null ? ` (${commentCount})` : null}
+            </TabsTrigger>
+            <TabsTrigger value="activity">Activity</TabsTrigger>
+          </TabsList>
 
-          {metaReady && detailSummary && (
-            <div className="space-y-3 border-b border-border p-4">
-              <div className="space-y-2">
-                <Label htmlFor="ticket-title">Title</Label>
-                <Input
-                  id="ticket-title"
-                  value={title}
-                  onChange={(e) => updateDraft({ title: e.target.value })}
-                />
-              </div>
-              {!showDetailsSection && (
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={saving}
-                    onClick={() => void saveMeta()}
-                  >
-                    Save details
-                  </Button>
+          <TabsContent
+            value="details"
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
+            {metaLoading ? <TicketMetaSkeleton /> : null}
+
+            {metaReady && detailSummary && (
+              <div className="shrink-0 space-y-3 border-b border-border p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ticket-title">Title</Label>
+                  <Input
+                    id="ticket-title"
+                    value={title}
+                    onChange={(e) => updateDraft({ title: e.target.value })}
+                  />
                 </div>
-              )}
-              {showContact && detailSummary.contact && detailSummary.contact_id && (
-                <TicketContactSection
-                  contactId={detailSummary.contact_id}
-                  displayName={
-                    isConversationSummary(detailSummary) &&
-                    detailSummary.contact_address
-                      ? detailSummary.contact_address
-                      : detailSummary.contact.username
-                  }
-                  contactAddress={
-                    isConversationSummary(detailSummary)
-                      ? detailSummary.contact_address
-                      : null
-                  }
-                />
-              )}
-              {showDetailsSection && (
-                <TicketDetailsSection
-                  assigneeId={assigneeId}
-                  onAssigneeChange={(value) =>
-                    updateDraft({ assigneeId: value })
-                  }
-                  users={users}
-                  usersLoading={usersQuery.isPending}
-                  selectedTags={selectedTags}
-                  onTagsChange={(tags) => updateDraft({ selectedTags: tags })}
-                  allTags={allTags}
-                  tagsLoading={tagsQuery.isPending}
-                  recentNames={recentNames}
-                  saving={saving}
-                  onSave={() => void saveMeta()}
-                  showAssignee={showAssignee}
-                  showTags={showTags}
-                  body={
-                    showDescription && isTaskSummary(detailSummary)
-                      ? body
-                      : undefined
-                  }
-                  onBodyChange={
-                    showDescription && isTaskSummary(detailSummary)
-                      ? (value) => updateDraft({ body: value })
-                      : undefined
-                  }
-                  summary={[
-                    showAssignee
-                      ? users.find((u) => u.id === assigneeId)?.username ??
-                        detailSummary.assignee?.username ??
-                        "Unassigned"
-                      : null,
-                    showTags
-                      ? selectedTags.length > 0
-                        ? selectedTags.map((tag) => tag.name).join(", ")
-                        : "No tags"
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                />
-              )}
-              {customFieldDefinitions.length > 0 && (
-                <TicketCustomFieldsSection
-                  definitions={customFieldEditorDefinitions}
-                  values={customFieldValues}
-                  optionsLoading={customFieldsDefsPending}
-                  saving={saving}
-                  dirty={customFieldsDirty}
-                  onValueChange={updateCustomFieldValue}
-                  onSave={() => void saveCustomFields()}
-                />
-              )}
-            </div>
-          )}
+                {!showDetailsSection && (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={saving}
+                      onClick={() => void saveMeta()}
+                    >
+                      Save details
+                    </Button>
+                  </div>
+                )}
+                {showContact && detailSummary.contact && detailSummary.contact_id && (
+                  <TicketContactSection
+                    contactId={detailSummary.contact_id}
+                    displayName={
+                      isConversationSummary(detailSummary) &&
+                      detailSummary.contact_address
+                        ? detailSummary.contact_address
+                        : detailSummary.contact.username
+                    }
+                    contactAddress={
+                      isConversationSummary(detailSummary)
+                        ? detailSummary.contact_address
+                        : null
+                    }
+                  />
+                )}
+                {showDetailsSection && (
+                  <TicketDetailsSection
+                    assigneeId={assigneeId}
+                    onAssigneeChange={(value) =>
+                      updateDraft({ assigneeId: value })
+                    }
+                    users={users}
+                    usersLoading={usersQuery.isPending}
+                    selectedTags={selectedTags}
+                    onTagsChange={(tags) => updateDraft({ selectedTags: tags })}
+                    allTags={allTags}
+                    tagsLoading={tagsQuery.isPending}
+                    recentNames={recentNames}
+                    saving={saving}
+                    onSave={() => void saveMeta()}
+                    showAssignee={showAssignee}
+                    showTags={showTags}
+                    body={
+                      showDescription && isTaskSummary(detailSummary)
+                        ? body
+                        : undefined
+                    }
+                    onBodyChange={
+                      showDescription && isTaskSummary(detailSummary)
+                        ? (value) => updateDraft({ body: value })
+                        : undefined
+                    }
+                    summary={[
+                      showAssignee
+                        ? users.find((u) => u.id === assigneeId)?.username ??
+                          detailSummary.assignee?.username ??
+                          "Unassigned"
+                        : null,
+                      showTags
+                        ? selectedTags.length > 0
+                          ? selectedTags.map((tag) => tag.name).join(", ")
+                          : "No tags"
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                )}
+                {customFieldDefinitions.length > 0 && (
+                  <TicketCustomFieldsSection
+                    definitions={customFieldEditorDefinitions}
+                    values={customFieldValues}
+                    optionsLoading={customFieldsDefsPending}
+                    saving={saving}
+                    dirty={customFieldsDirty}
+                    onValueChange={updateCustomFieldValue}
+                    onSave={() => void saveCustomFields()}
+                  />
+                )}
+              </div>
+            )}
 
-          {detailSummary && isConversationSummary(detailSummary) && (
-            <TicketConversationSection
-              summary={detailSummary}
-              ticketId={ticketId}
-              threadOrder={threadOrder}
-              onSubmit={sendEmailReply}
-              onSaveDraft={saveEmailDraft}
-              onUpdateDraft={updateEmailDraft}
-              onSendDraft={sendEmailDraft}
-              onDeleteDraft={deleteEmailDraft}
-              saving={saving}
-              onToggleMessageRead={(id) => void toggleMessageRead(id)}
-            />
-          )}
+            {detailSummary && isConversationSummary(detailSummary) && (
+              <TicketConversationSection
+                summary={detailSummary}
+                ticketId={ticketId}
+                threadOrder={threadOrder}
+                onSubmit={sendEmailReply}
+                onSaveDraft={saveEmailDraft}
+                onUpdateDraft={updateEmailDraft}
+                onSendDraft={sendEmailDraft}
+                onDeleteDraft={deleteEmailDraft}
+                saving={saving}
+                onToggleMessageRead={(id) => void toggleMessageRead(id)}
+              />
+            )}
 
-          {isConversation && !detailSummary && summaryQuery.isFetching && (
-            <TicketConversationSkeleton />
-          )}
+            {isConversation && !detailSummary && summaryQuery.isFetching && (
+              <TicketConversationSkeleton />
+            )}
+          </TabsContent>
 
-          {detailSummary && (
-            <TicketCommentsSection
-              ticketId={ticketId}
-              threadOrder={commentThreadOrder}
-            />
-          )}
-        </div>
+          <TabsContent
+            value="comments"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            {detailSummary && (
+              <TicketCommentsSection
+                ticketId={ticketId}
+                threadOrder={commentThreadOrder}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent
+            value="activity"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <TicketActivitySection ticketId={ticketId} />
+          </TabsContent>
+        </Tabs>
 
         {error && (
           <div className="px-4 pb-3">

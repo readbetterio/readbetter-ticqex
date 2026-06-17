@@ -1,24 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { EnvelopeIcon, EnvelopeOpenIcon } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { usePersistedExpanded } from "@/hooks/use-persisted-expanded";
-import { cn } from "@/lib/utils";
 import { EmailReplySection } from "./email-reply-section";
-import { EmailMessageBody } from "./email-message-body";
-import { EmailMessageHeader } from "./email-message-header";
+import { EmailMessageCard } from "./email-message-card";
+import { EmailThreadOutline } from "./email-thread-outline";
+import {
+  isNearLatest,
+  orderVisibleMessages,
+  scrollToLatest,
+  type EmailThreadOrder,
+} from "./email-conversation-utils";
+import { useTicketScopedMessageSet } from "./use-ticket-scoped-message-set";
 import type { ConversationTicketSummary } from "@/types/tickets";
 import type { EmailComposePayload, MessageRow } from "./types";
-import { isEmailMessage, messageSenderEmail } from "./email-utils";
+import { isEmailMessage } from "./email-utils";
 
-export type EmailThreadOrder = "oldest_first" | "newest_first";
+export type { EmailThreadOrder } from "./email-conversation-utils";
 
 const CONVERSATION_EXPANDED_KEY = "ticqex.ticket-conversation.expanded.v1";
 
@@ -28,22 +27,6 @@ type EmailConversationTicket = Pick<
 > & {
   messages: MessageRow[];
 };
-
-function scrollToLatest(el: HTMLElement, order: EmailThreadOrder) {
-  if (order === "newest_first") {
-    el.scrollTop = 0;
-  } else {
-    el.scrollTop = el.scrollHeight;
-  }
-}
-
-function isNearLatest(el: HTMLElement, order: EmailThreadOrder) {
-  const threshold = 96;
-  if (order === "newest_first") {
-    return el.scrollTop < threshold;
-  }
-  return el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-}
 
 export function EmailConversationPanel({
   ticket,
@@ -73,21 +56,22 @@ export function EmailConversationPanel({
   onToggleMessageRead: (messageId: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef(new Map<string, HTMLDivElement>());
   const messageCountRef = useRef(0);
+  const collapsedCards = useTicketScopedMessageSet(ticketId);
+  const expandedBodies = useTicketScopedMessageSet(ticketId);
   const { expanded, toggleExpanded, hydrated } = usePersistedExpanded(
     CONVERSATION_EXPANDED_KEY,
     true,
   );
 
-  const messages = useMemo(() => {
-    const visible = ticket.messages.filter(
-      (msg) => msg.email_delivery_status !== "draft",
-    );
-    if (threadOrder === "newest_first") {
-      return [...visible].reverse();
-    }
-    return visible;
-  }, [ticket.messages, threadOrder]);
+  const collapsedCardMessageIds = collapsedCards.messageIdsForTicket(ticketId);
+  const expandedBodyMessageIds = expandedBodies.messageIdsForTicket(ticketId);
+
+  const messages = useMemo(
+    () => orderVisibleMessages(ticket.messages, threadOrder),
+    [ticket.messages, threadOrder],
+  );
 
   const lastEmailMessage = useMemo((): MessageRow | null => {
     const visible = ticket.messages.filter(
@@ -103,25 +87,61 @@ export function EmailConversationPanel({
 
   const contactEmail =
     ticket.contact_address ?? ticket.contact?.username ?? "";
+  const showOutline = messages.length > 1;
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || messages.length === 0) return;
+  function setMessageRef(messageId: string, node: HTMLDivElement | null) {
+    if (node) {
+      messageRefs.current.set(messageId, node);
+      return;
+    }
+    messageRefs.current.delete(messageId);
+  }
 
-    const countChanged = messages.length !== messageCountRef.current;
-    messageCountRef.current = messages.length;
+  function scrollToMessage(messageId: string) {
+    const node = messageRefs.current.get(messageId);
+    if (!node) return;
+    node.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
 
-    if (!countChanged && !isNearLatest(el, threadOrder)) return;
+  function jumpToMessage(messageId: string) {
+    collapsedCards.remove(ticketId, messageId);
 
-    const scroll = () => scrollToLatest(el, threadOrder);
-    scroll();
-    const timer = window.setTimeout(scroll, 100);
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => scrollToMessage(messageId));
+    });
+  }
 
-    return () => window.clearTimeout(timer);
-  }, [messages, threadOrder]);
+  function collapseAllMessageCards() {
+    collapsedCards.replaceAll(
+      ticketId,
+      new Set(messages.map((msg) => msg.id)),
+    );
+    expandedBodies.clear(ticketId);
+  }
+
+  function expandAllMessageCards() {
+    collapsedCards.clear(ticketId);
+  }
+
+  const setScrollContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      scrollRef.current = node;
+      if (!node || messages.length === 0) return;
+
+      const countChanged = messages.length !== messageCountRef.current;
+      messageCountRef.current = messages.length;
+
+      if (!countChanged && !isNearLatest(node, threadOrder)) return;
+
+      scrollToLatest(node, threadOrder);
+      window.requestAnimationFrame(() => scrollToLatest(node, threadOrder));
+    },
+    [messages.length, threadOrder],
+  );
+
 
   return (
-    <div className="flex shrink-0 flex-col border-t border-border">
+    <div className="flex min-h-0 flex-[3] flex-col overflow-hidden border-t border-border">
       <button
         type="button"
         className="flex w-full shrink-0 items-center gap-2 border-b border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/50"
@@ -142,74 +162,41 @@ export function EmailConversationPanel({
         )}
       </button>
       {hydrated && expanded && (
-        <div
-          ref={scrollRef}
-          className="max-h-[min(40vh,360px)] overflow-y-auto overscroll-contain"
-        >
-          <div className="space-y-3 p-4">
-            {messages.map((msg) => {
-            const isIncoming = msg.author_type === "contact";
-            const isOutbound = !isIncoming;
-            const isUnread = isIncoming && msg.read === false;
-
-            return (
-              <div
-                key={msg.id}
-                className={cn(
-                  "relative isolate overflow-hidden rounded-lg border border-transparent p-3 text-sm ring-1 ring-foreground/5",
-                  isUnread && "border-primary/30 bg-primary/5",
-                  !isUnread && "bg-muted/50",
-                )}
-              >
-                {isIncoming && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className={cn(
-                          "absolute top-2 right-2 text-muted-foreground",
-                          isUnread && "text-primary",
-                        )}
-                        aria-label={
-                          isUnread ? "Mark as read" : "Mark as unread"
-                        }
-                        onClick={() => onToggleMessageRead(msg.id)}
-                      >
-                        {isUnread ? (
-                          <EnvelopeOpenIcon weight="fill" />
-                        ) : (
-                          <EnvelopeIcon />
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="left">
-                      {isUnread ? "Mark as read" : "Mark as unread"}
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-
-                <div className="mb-2 flex items-start gap-2 pr-8">
-                  <time
-                    dateTime={msg.created_at}
-                    className="shrink-0 text-xs tabular-nums text-muted-foreground"
-                  >
-                    {new Date(msg.created_at).toLocaleString()}
-                  </time>
-                </div>
-
-                <p className="mb-2 truncate text-sm font-medium text-foreground">
-                  {messageSenderEmail(msg, ticket)}
-                </p>
-
-                <EmailMessageHeader message={msg} isOutbound={isOutbound} />
-                <EmailMessageBody message={msg} emphasize={isUnread} />
-              </div>
-            );
-          })}
+        <>
+          {showOutline && (
+            <EmailThreadOutline
+              messages={messages}
+              collapsedCardMessageIds={collapsedCardMessageIds}
+              onJumpToMessage={jumpToMessage}
+              onCollapseAll={collapseAllMessageCards}
+              onExpandAll={expandAllMessageCards}
+            />
+          )}
+          <div
+            ref={setScrollContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          >
+            <div className="space-y-3 p-4">
+              {messages.map((msg) => (
+                <EmailMessageCard
+                  key={msg.id}
+                  message={msg}
+                  ticket={ticket}
+                  isCardCollapsed={collapsedCardMessageIds.has(msg.id)}
+                  isBodyExpanded={expandedBodyMessageIds.has(msg.id)}
+                  onToggleCardCollapsed={() =>
+                    collapsedCards.toggle(ticketId, msg.id)
+                  }
+                  onToggleBodyExpanded={() =>
+                    expandedBodies.toggle(ticketId, msg.id)
+                  }
+                  onToggleMessageRead={() => onToggleMessageRead(msg.id)}
+                  setMessageRef={(node) => setMessageRef(msg.id, node)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {ticket.channel === "email" && (
