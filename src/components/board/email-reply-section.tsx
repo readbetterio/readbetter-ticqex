@@ -32,7 +32,7 @@ export function EmailReplySection({
   onDeleteDraft: (id: string) => Promise<void>;
 }) {
   return (
-    <div className="relative z-10 flex min-h-0 max-h-[min(34vh,20rem)] shrink-0 flex-col overflow-hidden border-t border-border bg-background">
+    <div className="relative z-10 flex min-h-0 max-h-[min(52vh,30rem)] shrink-0 flex-col overflow-hidden border-t border-border bg-background">
       <EmailDraftsPanel
         ticketId={ticketId}
         contactEmail={contactEmail}

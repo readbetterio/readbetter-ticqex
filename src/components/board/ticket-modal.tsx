@@ -642,7 +642,7 @@ export function TicketModal({
 
           <TabsContent
             value="details"
-            className="min-h-0 flex-1 overflow-y-auto"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden"
           >
             {metaLoading ? <TicketMetaSkeleton /> : null}
 
