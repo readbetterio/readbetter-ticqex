@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  BOARD_REFRESH_EVENT,
+  BOARD_UPDATES_CHANNEL,
+} from "@shared/board-broadcast";
 import type { BoardDragSession } from "@/hooks/use-board-drag";
 
 const DEBOUNCE_MS = 400;
@@ -50,7 +54,12 @@ export function useBoardRealtime(
     const supabase = createClient();
 
     const channel = supabase
-      .channel("board")
+      .channel(BOARD_UPDATES_CHANNEL)
+      .on(
+        "broadcast",
+        { event: BOARD_REFRESH_EVENT },
+        scheduleRefresh,
+      )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "tickets" },

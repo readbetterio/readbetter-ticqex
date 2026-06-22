@@ -40,7 +40,10 @@ export default function RootLayout({
         calSans.variable,
       )}
     >
-      <body className="flex h-full flex-col overflow-hidden">
+      <body
+        className="flex h-full flex-col overflow-hidden"
+        suppressHydrationWarning
+      >
         <QueryProvider>
           <ThemeProvider
             attribute="class"

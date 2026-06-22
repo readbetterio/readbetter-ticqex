@@ -1,4 +1,5 @@
 import { buildTicketCardSurface } from "@server/channels";
+import { notifyBoardRefresh } from "@server/lib/board-broadcast";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { parsePagination } from "@server/lib/utils";
@@ -439,6 +440,15 @@ export async function updateTicket(
         options.auth,
       );
     }
+  }
+
+  if (
+    !options?.boardMoveHandled &&
+    input.status_id !== undefined &&
+    previousStatusId &&
+    previousStatusId !== input.status_id
+  ) {
+    notifyBoardRefresh();
   }
 
   return getTicket(id);

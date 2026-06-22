@@ -1,6 +1,7 @@
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
 import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
+import { notifyBoardRefresh } from "@server/lib/board-broadcast";
 import { setLaneOrder } from "@server/services/board-lane-orders";
 import { recordTicketStatusChangedActivity } from "@server/services/ticket-activity";
 import type { AuthContext } from "@server/middleware/auth";
@@ -97,12 +98,15 @@ export async function moveTicketOnBoard(
       userId,
       actualFromStatusId,
       sourceMatchesRequest ? input.source_ticket_ids! : [],
-      sourceMatchesRequest
-        ? laneOrderOptions(
-            fc?.source_visible_ticket_ids,
-            fc?.removed_ticket_ids ?? [input.ticket_id],
-          )
-        : removeOnlyLaneOrderOptions(input.ticket_id),
+      {
+        ...(sourceMatchesRequest
+          ? laneOrderOptions(
+              fc?.source_visible_ticket_ids,
+              fc?.removed_ticket_ids ?? [input.ticket_id],
+            )
+          : removeOnlyLaneOrderOptions(input.ticket_id)),
+        broadcast: false,
+      },
     );
   }
 
@@ -110,12 +114,17 @@ export async function moveTicketOnBoard(
     userId,
     input.to_status_id,
     input.target_ticket_ids,
-    laneOrderOptions(fc?.target_visible_ticket_ids),
+    {
+      ...laneOrderOptions(fc?.target_visible_ticket_ids),
+      broadcast: false,
+    },
   );
 
   if (crossLane) {
     invalidateLaneSortCache([actualFromStatusId, input.to_status_id]);
   }
+
+  notifyBoardRefresh();
 
   return {
     ticket_id: input.ticket_id,
