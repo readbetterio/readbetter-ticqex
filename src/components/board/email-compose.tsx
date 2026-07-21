@@ -175,9 +175,9 @@ export function EmailCompose({
       {hydrated && expanded && (
         <form
           onSubmit={(e) => void handleSubmit(e)}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4"
         >
-          <div className="mb-3 space-y-3">
+          <div className="mb-3 shrink-0 space-y-3">
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -223,11 +223,12 @@ export function EmailCompose({
           <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            className="min-h-40 flex-1 field-sizing-fixed resize-none overflow-hidden"
             rows={5}
             placeholder="Write your reply…"
           />
 
-          <div className="mt-2 flex flex-wrap items-center gap-3">
+          <div className="mt-2 flex shrink-0 flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="include-quote"
@@ -308,7 +309,7 @@ export function EmailCompose({
             </ul>
           )}
 
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="mt-2 flex shrink-0 justify-end gap-2">
             <Button
               type="button"
               size="sm"

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@server/lib/supabase-admin";
+import { notifyBoardRefresh } from "@server/lib/board-broadcast";
 import { ApiError } from "@server/lib/errors";
 import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
 import { mergeFilteredLaneOrder, mergeFilteredLaneOrderWithRemoval } from "@shared/board-sort/merge-lane-order";
@@ -92,7 +93,11 @@ export async function setLaneOrder(
   userId: string,
   statusId: string,
   ticketIds: string[],
-  options?: { visibleTicketIds?: string[]; removedTicketIds?: string[] },
+  options?: {
+    visibleTicketIds?: string[];
+    removedTicketIds?: string[];
+    broadcast?: boolean;
+  },
 ) {
   const db = createAdminClient();
   let ordered: string[];
@@ -132,6 +137,10 @@ export async function setLaneOrder(
     { onConflict: "user_id,status_id" },
   );
   if (error) throw ApiError.internal(error.message);
+
+  if (options?.broadcast !== false) {
+    notifyBoardRefresh();
+  }
 
   return ordered;
 }
