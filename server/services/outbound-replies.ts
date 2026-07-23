@@ -156,3 +156,43 @@ export async function prepareAgentOutboundReply(
 
   return { body, ...headers };
 }
+
+/** First outbound email that opens a conversation — no Re: prefix, no quote. */
+export async function prepareAgentInitialOutbound(
+  ticket: {
+    title: string;
+    contact_address: string;
+  },
+  input: {
+    body: string;
+    email?: {
+      cc?: string[];
+      subject?: string;
+    };
+  },
+): Promise<PreparedAgentOutboundReply> {
+  const contactEmail = ticket.contact_address.trim();
+  if (!contactEmail) {
+    throw ApiError.internal("Ticket contact address not found");
+  }
+
+  const subject =
+    input.email?.subject?.trim() ||
+    ticket.title.trim() ||
+    "(no subject)";
+
+  let body = input.body.trim();
+  const settings = await getSettings();
+  const signature = String(settings.email_signature ?? "").trim();
+  if (signature) {
+    body = `${body}\n\n${signature}`;
+  }
+
+  return {
+    body,
+    emailFrom: `${process.env.SUPPORT_FROM_NAME ?? "Support"} <${supportEmail()}>`,
+    emailTo: [contactEmail],
+    emailCc: dedupeEmails(input.email?.cc ?? []),
+    emailSubject: subject,
+  };
+}

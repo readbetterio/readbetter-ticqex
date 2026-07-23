@@ -2,11 +2,15 @@ import { assertChannelFields } from "@server/channels/field-enforcement";
 import { ApiError } from "@server/lib/errors";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ensureEmailThread } from "@server/services/email-threading";
-import { createContactMessage } from "@server/services/messages";
+import {
+  createContactMessage,
+  createInitialAgentOutboundMessage,
+} from "@server/services/messages";
 import { invalidateLaneSortCache } from "@server/services/board-lane-sort-cache";
+import type { AuthContext } from "@server/middleware/auth";
 
 export type OpenConversationTicketInput = {
-  origin: "api" | "email";
+  origin: "api" | "email" | "manual";
   title: string;
   contactAddress: string;
   contactId: string;
@@ -28,9 +32,34 @@ export type OpenConversationTicketInput = {
   };
 };
 
-export async function openConversationTicket(
-  input: OpenConversationTicketInput,
-): Promise<{ ticketId: string; messageId: string }> {
+export type OpenAgentOutboundConversationInput = {
+  origin: "api" | "manual";
+  title: string;
+  contactAddress: string;
+  contactId: string;
+  statusId: string;
+  assigneeId?: string | null;
+  threadSubject: string;
+  auth: AuthContext;
+  agentMessage: {
+    body: string;
+    authorId: string;
+    channel: "api" | "admin";
+    emailFrom: string;
+    emailTo: string[];
+    emailCc: string[];
+    emailSubject: string;
+  };
+};
+
+async function insertConversationTicket(input: {
+  origin: "api" | "email" | "manual";
+  title: string;
+  contactAddress: string;
+  contactId: string;
+  statusId: string;
+  assigneeId?: string | null;
+}): Promise<string> {
   const db = createAdminClient();
 
   assertChannelFields("email", "on_create", {
@@ -57,12 +86,38 @@ export async function openConversationTicket(
   if (error) throw ApiError.internal(error.message);
 
   invalidateLaneSortCache([input.statusId]);
+  return ticket.id;
+}
 
-  const ticketId = ticket.id;
+export async function openConversationTicket(
+  input: OpenConversationTicketInput,
+): Promise<{ ticketId: string; messageId: string }> {
+  const db = createAdminClient();
+  const ticketId = await insertConversationTicket(input);
 
   try {
     const { message } = await createContactMessage(ticketId, input.firstMessage);
     await ensureEmailThread(ticketId, input.threadSubject, input.rootMessageId);
+    return { ticketId, messageId: message.id };
+  } catch (err) {
+    await db.from("tickets").delete().eq("id", ticketId);
+    throw err;
+  }
+}
+
+export async function openAgentOutboundConversation(
+  input: OpenAgentOutboundConversationInput,
+): Promise<{ ticketId: string; messageId: string }> {
+  const db = createAdminClient();
+  const ticketId = await insertConversationTicket(input);
+
+  try {
+    const { message } = await createInitialAgentOutboundMessage(
+      ticketId,
+      input.agentMessage,
+      input.auth,
+    );
+    await ensureEmailThread(ticketId, input.threadSubject, null);
     return { ticketId, messageId: message.id };
   } catch (err) {
     await db.from("tickets").delete().eq("id", ticketId);

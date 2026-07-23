@@ -11,7 +11,7 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay } from "@dnd-kit/core";
-import { PlusIcon } from "@phosphor-icons/react";
+import { PlusIcon, CaretDownIcon } from "@phosphor-icons/react";
 import {
   statusChangeInsertIndex,
   statusChangeTargetIds,
@@ -19,6 +19,12 @@ import {
 } from "@shared/board-sort";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api-client";
 import {
@@ -31,7 +37,10 @@ import { useBoardQuery, type BoardResponse } from "@/hooks/use-board-query";
 import { useBoardDrag } from "@/hooks/use-board-drag";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
 import { useBoardLaneLoadMore } from "@/hooks/use-board-lane-load-more";
-import { prefetchTicketReferenceData } from "@/hooks/use-ticket-reference-data";
+import {
+  prefetchTicketReferenceData,
+  useTicketBoardSettings,
+} from "@/hooks/use-ticket-reference-data";
 import { useStatuses } from "@/hooks/use-statuses";
 import {
   ticketSummaryQueryKey,
@@ -52,14 +61,17 @@ import { BoardSortSheet } from "./board-sort-sheet";
 import { TicketCard } from "./ticket-card";
 import { LaneColumn } from "./lane-column";
 import { CreateTicketModal } from "./create-ticket-modal";
+import { CreateEmailModal } from "./create-email-modal";
 import { BoardTicketModalProvider } from "./board-ticket-modal-context";
 import {
   buildOptimisticBoardTicket,
+  buildOptimisticEmailTicket,
   insertNewTicketIntoLane,
   removeTicketFromLanes,
   replaceTicketInLanes,
   shouldOptimisticallyShowTicket,
   ticketDetailToBoardTicket,
+  type CreateEmailPayload,
   type CreateTicketPayload,
 } from "./board-create-client";
 import {
@@ -113,7 +125,11 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
     [statusesQuery.data],
   );
   const [showCreate, setShowCreate] = useState(false);
+  const [showCreateEmail, setShowCreateEmail] = useState(false);
   const [moveError, setMoveError] = useState<string | null>(null);
+  const boardSettingsQuery = useTicketBoardSettings();
+  const emailChannelEnabled =
+    boardSettingsQuery.data?.emailChannelEnabled ?? false;
 
   const openTicket = useCallback(
     (ticket: BoardTicket) => {
@@ -403,6 +419,92 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
     ],
   );
 
+  const handleCreateEmail = useCallback(
+    (payload: CreateEmailPayload) => {
+      setShowCreateEmail(false);
+      setMoveError(null);
+
+      const tempId = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const optimistic = buildOptimisticEmailTicket(payload, tempId, now);
+      const showOptimistic = shouldOptimisticallyShowTicket({
+        ticket: optimistic,
+        filter,
+        searchQuery,
+        searchActive,
+        capped,
+      });
+
+      if (showOptimistic) {
+        dragSessionRef.current.mutedUntil = Date.now() + REALTIME_MUTE_MS;
+        setLanes((current) =>
+          insertNewTicketIntoLane(current, payload.statusId, optimistic, sort),
+        );
+      }
+
+      const tagNames = payload.tags
+        .map((tag) => tag.name.trim())
+        .filter(Boolean);
+
+      void (async () => {
+        try {
+          const created = await apiFetch<TicketDetail>("/api/v1/tickets", {
+            method: "POST",
+            body: JSON.stringify({
+              kind: "conversation",
+              title: payload.title,
+              contact_address: payload.contactAddress,
+              outbound: {
+                body: payload.body,
+                ...(payload.subject ? { subject: payload.subject } : {}),
+                ...(payload.cc?.length ? { cc: payload.cc } : {}),
+              },
+              ...(payload.statusId ? { status_id: payload.statusId } : {}),
+              ...(tagNames.length ? { tags: tagNames } : {}),
+              origin: "manual",
+            }),
+          });
+
+          dragSessionRef.current.mutedUntil = Date.now() + REALTIME_MUTE_MS;
+
+          if (showOptimistic) {
+            setLanes((current) =>
+              replaceTicketInLanes(
+                current,
+                tempId,
+                ticketDetailToBoardTicket(created),
+              ),
+            );
+          }
+
+          void queryClient.refetchQueries({
+            queryKey: ["board"],
+            type: "active",
+          });
+          openTicket(ticketDetailToBoardTicket(created));
+        } catch (err) {
+          if (showOptimistic) {
+            setLanes((current) => removeTicketFromLanes(current, tempId));
+          }
+          setMoveError(
+            err instanceof Error ? err.message : "Failed to send email",
+          );
+        }
+      })();
+    },
+    [
+      capped,
+      dragSessionRef,
+      filter,
+      openTicket,
+      queryClient,
+      sort,
+      searchActive,
+      searchQuery,
+      setLanes,
+    ],
+  );
+
   const hasSearchResults = lanes.some((lane) => lane.tickets.length > 0);
   const handleTicketDeleted = useCallback(
     (ticketId: string) => {
@@ -470,15 +572,45 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
           sort={sort}
           onSortChange={(next) => void handleSortChange(next)}
         />
-        <Button
-          size="sm"
-          className="shrink-0"
-          onClick={() => setShowCreate(true)}
-          aria-label="New ticket"
-        >
-          <PlusIcon />
-          <span className="hidden sm:inline">New Ticket</span>
-        </Button>
+        {emailChannelEnabled ? (
+          <div className="flex shrink-0">
+            <Button
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setShowCreate(true)}
+              aria-label="New ticket"
+            >
+              <PlusIcon />
+              <span className="hidden sm:inline">New Ticket</span>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                  aria-label="More create options"
+                >
+                  <CaretDownIcon className="size-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setShowCreateEmail(true)}>
+                  New email
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => setShowCreate(true)}
+            aria-label="New ticket"
+          >
+            <PlusIcon />
+            <span className="hidden sm:inline">New Ticket</span>
+          </Button>
+        )}
       </div>
 
       <div className="flex w-full shrink-0 items-center gap-2 px-4 pt-3 sm:hidden">
@@ -492,7 +624,27 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
     </>
   );
 
-  const createFab = (
+  const createFab = emailChannelEnabled ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="icon-lg"
+          className="fixed right-4 bottom-4 z-30 size-12 rounded-full shadow-lg sm:hidden"
+          aria-label="Create"
+        >
+          <PlusIcon className="size-5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="mb-2">
+        <DropdownMenuItem onSelect={() => setShowCreate(true)}>
+          New ticket
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setShowCreateEmail(true)}>
+          New email
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : (
     <Button
       size="icon-lg"
       className="fixed right-4 bottom-4 z-30 size-12 rounded-full shadow-lg sm:hidden"
@@ -615,6 +767,13 @@ export function KanbanBoard({ children }: { children?: ReactNode }) {
             statuses={allStatuses}
             onClose={() => setShowCreate(false)}
             onCreate={handleCreateTicket}
+          />
+        )}
+        {showCreateEmail && (
+          <CreateEmailModal
+            statuses={allStatuses}
+            onClose={() => setShowCreateEmail(false)}
+            onCreate={handleCreateEmail}
           />
         )}
       </div>
