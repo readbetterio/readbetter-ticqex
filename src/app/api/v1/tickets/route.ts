@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { enqueueChannelOutbound } from "@server/channels/email/background";
 import { jsonData, jsonList } from "@server/lib/response";
 import { withAuth, parseJsonBody } from "@server/lib/route-handler";
 import { parseBody, createTicketSchema } from "@server/lib/validation/schemas";
@@ -18,7 +19,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   return withAuth(request, async (auth) => {
     const body = parseBody(createTicketSchema, await parseJsonBody(request));
-    const ticket = await createTicket(body, auth);
+    const { ticket, outboundMessageId } = await createTicket(body, auth);
+
+    if (outboundMessageId) {
+      enqueueChannelOutbound("email", outboundMessageId);
+    }
+
     return jsonData(ticket, 201);
   });
 }

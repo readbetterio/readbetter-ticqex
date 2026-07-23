@@ -26,6 +26,16 @@ export type CreateTicketPayload = {
   tags: Tag[];
 };
 
+export type CreateEmailPayload = {
+  title: string;
+  contactAddress: string;
+  body: string;
+  subject?: string;
+  cc?: string[];
+  statusId: string;
+  tags: Tag[];
+};
+
 function initials(name: string): string {
   const parts = name.trim().split(/[\s@._-]+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -99,6 +109,50 @@ export function buildOptimisticBoardTicket(
       contact_address: null,
       custom_fields: {},
       preview,
+    }),
+    created_at: now,
+    updated_at: now,
+    unread_count: 0,
+  };
+}
+
+export function buildOptimisticEmailTicket(
+  payload: CreateEmailPayload,
+  tempId: string,
+  now: string,
+): BoardTicket {
+  const preview = bodyPreview(payload.body);
+  const contactAddress = payload.contactAddress.trim().toLowerCase();
+
+  return {
+    id: tempId,
+    title: payload.title,
+    is_pending: true,
+    kind: "conversation",
+    channel: "email",
+    origin: "manual",
+    contact_id: null,
+    assignee_id: null,
+    preview,
+    contact: {
+      username: contactAddress,
+      initials: initials(contactAddress),
+    },
+    assignee: null,
+    custom_fields: {},
+    contact_open_fields: [],
+    tags: payload.tags.map((tag) => ({
+      id: tag.id ?? tag.name,
+      name: tag.name,
+      color: tag.color,
+    })),
+    card_surface: buildTicketCardSurface({
+      kind: "conversation",
+      channel: "email",
+      contact_address: contactAddress,
+      custom_fields: {},
+      preview,
+      origin: "manual",
     }),
     created_at: now,
     updated_at: now,

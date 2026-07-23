@@ -59,21 +59,55 @@ export const createTaskTicketSchema = ticketBaseSchema.extend({
     }),
 });
 
+export const conversationOutboundSchema = z.object({
+  body: z.string().min(1),
+  subject: z.string().optional(),
+  cc: z.array(emailAddressSchema).optional(),
+});
+
 export const createConversationTicketSchema = z.object({
   kind: z.literal("conversation"),
   title: z.string().trim().min(1),
   contact_address: z.string().email(),
-  message: z.object({ body: z.string().min(1) }),
+  /** Contact-authored seed message (form / API intake). Mutually exclusive with outbound. */
+  message: z.object({ body: z.string().min(1) }).optional(),
+  /** Agent-authored first email. Requires an operational email channel. Mutually exclusive with message. */
+  outbound: conversationOutboundSchema.optional(),
+  origin: z.enum(["manual", "api"]).optional(),
   status_id: z.string().uuid().optional(),
   assignee_id: z.string().uuid().nullable().optional(),
   tags: z.array(z.string()).optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const createTicketSchema = z.discriminatedUnion("kind", [
-  createTaskTicketSchema,
-  createConversationTicketSchema,
-]);
+function refineConversationCreate(
+  data: {
+    kind: string;
+    message?: { body?: string };
+    outbound?: { body?: string };
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.kind !== "conversation") return;
+
+  const hasMessage = Boolean(data.message?.body?.trim());
+  const hasOutbound = Boolean(data.outbound?.body?.trim());
+  if (hasMessage === hasOutbound) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "Conversation tickets require exactly one of message (contact intake) or outbound (agent email)",
+      path: hasMessage ? ["outbound"] : ["message"],
+    });
+  }
+}
+
+export const createTicketSchema = z
+  .discriminatedUnion("kind", [
+    createTaskTicketSchema,
+    createConversationTicketSchema,
+  ])
+  .superRefine(refineConversationCreate);
 
 export const createTicketMcpInputSchema = z
   .object({
@@ -89,6 +123,7 @@ export const createTicketMcpInputSchema = z
       }),
     contact_address: z.string().email().optional(),
     message: z.object({ body: z.string().min(1).optional() }).optional(),
+    outbound: conversationOutboundSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (data.kind !== "conversation") return;
@@ -101,13 +136,7 @@ export const createTicketMcpInputSchema = z
       });
     }
 
-    if (!data.message?.body) {
-      ctx.addIssue({
-        code: "custom",
-        message: "message.body is required for conversation tickets",
-        path: ["message", "body"],
-      });
-    }
+    refineConversationCreate(data, ctx);
   });
 
 export const updateTicketSchema = z.object({

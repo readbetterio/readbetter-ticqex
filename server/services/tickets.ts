@@ -1,4 +1,9 @@
-import { buildTicketCardSurface } from "@server/channels";
+import {
+  assertChannelReadyToSend,
+  assertSendRecipientMatchesLockedFields,
+  buildTicketCardSurface,
+} from "@server/channels";
+import { isChannelOperational } from "@server/config/channel-gate";
 import { notifyBoardRefresh } from "@server/lib/board-broadcast";
 import { createAdminClient } from "@server/lib/supabase-admin";
 import { ApiError } from "@server/lib/errors";
@@ -24,7 +29,11 @@ import {
   formatMessageRow,
   listEnrichedMessages,
 } from "@server/services/messages";
-import { openConversationTicket } from "@server/services/conversation-open";
+import {
+  openAgentOutboundConversation,
+  openConversationTicket,
+} from "@server/services/conversation-open";
+import { prepareAgentInitialOutbound } from "@server/services/outbound-replies";
 import { getUnreadCountsByTicket } from "@server/services/message-reads";
 import {
   removeTicketFromAllLaneOrders,
@@ -268,14 +277,26 @@ export async function getTicketForContext(id: string) {
   return { ...base, messages: (messages ?? []) as ContextMessageRow[] };
 }
 
-export async function createTicket(input: CreateTicketInput, auth: AuthContext) {
+export type CreateTicketResult = {
+  ticket: Awaited<ReturnType<typeof getTicket>>;
+  /** Present when the create opened an agent-initiated outbound email. */
+  outboundMessageId?: string;
+};
+
+export async function createTicket(
+  input: CreateTicketInput,
+  auth: AuthContext,
+): Promise<CreateTicketResult> {
   if (input.kind === "conversation") {
     return createConversationTicket(input, auth);
   }
   return createTaskTicket(input, auth);
 }
 
-async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task" }>, auth: AuthContext) {
+async function createTaskTicket(
+  input: Extract<CreateTicketInput, { kind: "task" }>,
+  auth: AuthContext,
+): Promise<CreateTicketResult> {
   const db = createAdminClient();
   const statusId =
     input.status_id?.trim() || (await getDefaultStatusId());
@@ -310,21 +331,26 @@ async function createTaskTicket(input: Extract<CreateTicketInput, { kind: "task"
     auth,
   );
 
-  return getTicket(ticket.id);
+  return { ticket: await getTicket(ticket.id) };
 }
 
 async function createConversationTicket(
   input: Extract<CreateTicketInput, { kind: "conversation" }>,
   auth: AuthContext,
-) {
+): Promise<CreateTicketResult> {
   const db = createAdminClient();
   const contactAddress = input.contact_address.trim().toLowerCase();
   const contact = await findOrCreateContact(contactAddress);
+
+  if (input.outbound) {
+    return createOutboundConversationTicket(input, auth, contactAddress, contact.id);
+  }
+
   const statusId =
     input.status_id?.trim() || (await getInboundEmailStatusId());
 
   const { ticketId } = await openConversationTicket({
-    origin: "api",
+    origin: input.origin ?? "api",
     title: input.title,
     contactAddress,
     contactId: contact.id,
@@ -332,7 +358,7 @@ async function createConversationTicket(
     assigneeId: input.assignee_id ?? null,
     threadSubject: input.title,
     firstMessage: {
-      body: input.message.body,
+      body: input.message!.body,
       authorId: contact.id,
       channel: "api",
     },
@@ -347,7 +373,79 @@ async function createConversationTicket(
     auth,
   );
 
-  return created;
+  return { ticket: created };
+}
+
+async function createOutboundConversationTicket(
+  input: Extract<CreateTicketInput, { kind: "conversation" }>,
+  auth: AuthContext,
+  contactAddress: string,
+  contactId: string,
+): Promise<CreateTicketResult> {
+  const outbound = input.outbound!;
+  if (!isChannelOperational("email")) {
+    throw ApiError.serviceUnavailable(
+      "Email channel is disabled or integration is not configured",
+    );
+  }
+
+  assertChannelReadyToSend("email", {
+    contact_address: contactAddress,
+    custom_fields: {},
+  });
+
+  const prepared = await prepareAgentInitialOutbound(
+    { title: input.title, contact_address: contactAddress },
+    {
+      body: outbound.body,
+      email: {
+        cc: outbound.cc,
+        subject: outbound.subject,
+      },
+    },
+  );
+
+  assertSendRecipientMatchesLockedFields(
+    "email",
+    { contact_address: contactAddress, custom_fields: {} },
+    prepared.emailTo,
+  );
+
+  const db = createAdminClient();
+  const statusId =
+    input.status_id?.trim() || (await getDefaultStatusId());
+  const channel = auth.type === "api_key" ? "api" : "admin";
+
+  const { ticketId, messageId } = await openAgentOutboundConversation({
+    origin: input.origin ?? "api",
+    title: input.title,
+    contactAddress,
+    contactId,
+    statusId,
+    assigneeId: input.assignee_id ?? null,
+    threadSubject: prepared.emailSubject,
+    auth,
+    agentMessage: {
+      body: prepared.body,
+      authorId: auth.userId,
+      channel,
+      emailFrom: prepared.emailFrom,
+      emailTo: prepared.emailTo,
+      emailCc: prepared.emailCc,
+      emailSubject: prepared.emailSubject,
+    },
+  });
+
+  if (input.tags?.length) await setTicketTags(ticketId, input.tags);
+  await setCustomFields(db, "ticket", ticketId, input.custom_fields);
+
+  const created = await getTicket(ticketId);
+  await recordTicketCreatedActivity(
+    { id: created.id, title: created.title, kind: created.kind },
+    auth,
+  );
+
+  return { ticket: created, outboundMessageId: messageId };
 }
 
 export async function updateTicket(

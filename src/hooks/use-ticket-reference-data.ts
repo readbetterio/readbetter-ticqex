@@ -32,6 +32,7 @@ export type TicketBoardSettings = {
   emailThreadOrder: EmailThreadOrder;
   commentThreadOrder: CommentThreadOrder;
   copyContext: CopyContextSettings;
+  emailChannelEnabled: boolean;
 };
 
 async function fetchTicketBoardSettings(): Promise<TicketBoardSettings> {
@@ -39,12 +40,18 @@ async function fetchTicketBoardSettings(): Promise<TicketBoardSettings> {
     email_thread_order?: EmailThreadOrder;
     comment_thread_order?: CommentThreadOrder;
     copy_context?: unknown;
+    channels?: {
+      email?: {
+        enabled?: boolean;
+      };
+    };
   }>("/api/v1/settings");
 
   return {
     emailThreadOrder: settings.email_thread_order ?? "oldest_first",
     commentThreadOrder: settings.comment_thread_order ?? "oldest_first",
     copyContext: resolveCopyContextSettings(settings.copy_context),
+    emailChannelEnabled: Boolean(settings.channels?.email?.enabled),
   };
 }
 

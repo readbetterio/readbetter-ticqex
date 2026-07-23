@@ -82,12 +82,19 @@ export function registerTicketTools(server: McpServer) {
     {
       title: "Create Ticket",
       description:
-        "Create a task ticket or an API-originated conversation ticket.",
+        "Create a task ticket, an API conversation (contact message), or an agent-initiated email conversation (outbound).",
       inputSchema: createTicketMcpInputSchema.shape,
     },
     async (input, auth) => {
       const mcpInput = parseBody(createTicketMcpInputSchema, input);
-      return toolResult(await createTicket(parseBody(createTicketSchema, mcpInput), auth));
+      const { ticket, outboundMessageId } = await createTicket(
+        parseBody(createTicketSchema, mcpInput),
+        auth,
+      );
+      if (outboundMessageId) {
+        enqueueChannelOutbound("email", outboundMessageId);
+      }
+      return toolResult(ticket);
     },
   );
 

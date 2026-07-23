@@ -653,6 +653,49 @@ export type CreateContactMessageInput = {
   emailBodyHtml?: string | null;
 };
 
+export type CreateInitialAgentOutboundInput = {
+  body: string;
+  authorId: string;
+  channel: "api" | "admin";
+  emailFrom: string;
+  emailTo: string[];
+  emailCc: string[];
+  emailSubject: string;
+};
+
+/** Insert a pending agent email that opens a conversation (no prior thread). */
+export async function createInitialAgentOutboundMessage(
+  ticketId: string,
+  input: CreateInitialAgentOutboundInput,
+  auth: AuthContext,
+) {
+  await loadMessageTicket(ticketId);
+
+  const message = await insertMessage({
+    ticketId,
+    body: input.body,
+    visibility: "public",
+    authorType: "agent",
+    authorId: input.authorId,
+    channel: input.channel,
+    emailFrom: input.emailFrom,
+    emailTo: input.emailTo,
+    emailCc: input.emailCc,
+    emailSubject: input.emailSubject,
+    emailDeliveryStatus: "pending",
+  });
+
+  await recordAgentReplyActivity({
+    ticketId,
+    messageId: message.id,
+    body: message.body,
+    channel: message.channel,
+    auth,
+  });
+
+  return { message };
+}
+
 export async function createContactMessage(
   ticketId: string,
   input: CreateContactMessageInput,

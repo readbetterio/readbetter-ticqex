@@ -1,6 +1,6 @@
 {
   "name": "@ticqex/api-spec",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shared Ticqex API operation catalog for CLI and OpenAPI generation",
   "license": "MIT",
   "homepage": "https://github.com/rbouschery/ticqex/tree/main/packages/api-spec#readme",
